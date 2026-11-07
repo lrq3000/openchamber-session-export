@@ -1,0 +1,14 @@
+{
+  "name": "openchamber-session-export",
+  "version": "0.1.0",
+  "metadata": { "version": "0.1.0", "creation": "2026-11-07", "last_updated": "2026-11-07" },
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": { "openchamber": ">=2.6.1" },
+    "contributes": {
+      "panel": { "id": "session-export", "name": "Session Export", "icon": "download-line", "entry": "panel/index.html" },
+      "actions": [{ "id": "export-session", "label": "Export complete session", "icon": "download-line", "where": "session" }],
+      "service": { "entry": "service.cjs", "runtime": "host", "permissions": { "exec": ["powershell.exe"] } }
+    }
+  }
+}
