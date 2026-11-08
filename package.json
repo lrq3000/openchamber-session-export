@@ -1,18 +1,19 @@
 {
   "name": "openchamber-session-export",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "metadata": { "version": "0.1.0", "creation": "2026-11-07", "last_updated": "2026-11-07" },
+  "metadata": { "version": "0.2.0", "creation": "2026-11-07", "last_updated": "2026-11-08" },
   "engines": { "node": ">=22.13.0" },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",
     "build": "node scripts/build.mjs",
     "test:ui": "node --import tsx --test tests/ui/*.test.ts",
-    "test:smoke": "node --import tsx --test tests/smoke/*.test.ts"
+    "test:smoke": "node --import tsx --test tests/smoke/*.test.ts",
+    "test:stress": "node --import tsx --test tests/stress/*.test.ts"
   },
-  "dependencies": { "@openchamber/sdk": "2.6.0", "yazl": "3.3.1" },
+  "dependencies": { "@openchamber/sdk": "2.6.0", "stream-json": "3.8.0", "yazl": "3.3.1" },
   "devDependencies": {
     "@types/node": "26.6.6",
     "@types/yazl": "3.3.1",

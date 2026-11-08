@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { SessionSource } from '../src/opencode.js';
-import { capture } from './fixtures.js';
+import { capture, materialize } from './fixtures.js';
 
 export async function fixtureServer(handler: (path: URL) => unknown) {
   const calls: string[] = [];
@@ -37,7 +37,7 @@ function route(url: URL): unknown {
 test('captures every message page, unfinished content, archived descendants and durable watermark using GET only', async () => {
   const server = await fixtureServer(route);
   try {
-    const result = await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target);
+    const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target));
     assert.equal(result.sessions.length, 2);
     assert.equal(result.sessions[0].messages.length, 2);
     assert.equal(result.sessions[0].messages[1].content[0].text, 'Check the saved evidence first.');
@@ -71,14 +71,14 @@ test('discloses unavailable logs and a changing session instead of inventing com
     return route(url);
   });
   try {
-    const result = await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target);
+    const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target));
     assert.equal(result.sessions[0].changed, true);
     assert.equal(result.sessions[0].log.available, false);
     assert.ok(result.warnings.some(warning => /log/i.test(warning)));
   } finally { await server.close(); }
 });
 
-test('enforces the capture budget during pagination rather than after retaining every page', async () => {
+test('captures every page beyond the former cumulative memory budget instead of refusing the transcript', async () => {
   let pages = 0;
   const server = await fixtureServer(url => {
     if (url.pathname.endsWith('/message')) {
@@ -89,15 +89,90 @@ test('enforces the capture budget during pagination rather than after retaining 
     return route(url);
   });
   try {
-    await assert.rejects(new SessionSource({ url: server.url, version: '2.2.5' }, { maxCaptureBytes: 2200 }).capture(capture().target), /budget|limit/i);
-    assert.ok(pages <= 2, `Retained/read too many transcript pages: ${pages}`);
+    const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target));
+    assert.equal(result.sessions[0].messages.length, 3);
+    assert.equal(pages, 3);
   } finally { await server.close(); }
 });
 
 test('preserves uncertainty when the active-session check is unavailable', async () => {
   const server = await fixtureServer(url => url.pathname === '/api/session/active' ? undefined : route(url));
   try {
-    const result = await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target);
+    const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target));
     assert.equal(result.sessions[0].active, null);
   } finally { await server.close(); }
+});
+
+test('distinguishes inactive false/null records from active state objects', async () => {
+  for (const [value, expected] of [[false, false], [null, false], [{ type: 'busy' }, true]] as const) {
+    const server = await fixtureServer(url => url.pathname === '/api/session/active' ? { data: { ses_root: value } } : route(url));
+    try {
+      const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target));
+      assert.equal(result.sessions[0].active, expected, `Activity value ${JSON.stringify(value)}`);
+    } finally { await server.close(); }
+  }
+});
+
+test('does not claim an available durable log without a valid watermark', async () => {
+  for (const event of [{ type: 'log.synced' }, { type: 'log.synced', seq: -1 }, { type: 'log.synced', seq: 1.5 }]) {
+    const server = await fixtureServer(url => url.pathname.endsWith('/log') ? `data: ${JSON.stringify(event)}\n\n` : route(url));
+    try {
+      const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target));
+      assert.equal(result.sessions[0].log.available, false);
+      assert.match(result.sessions[0].log.error!, /watermark/i);
+      assert.equal(result.sessions[0].messages.length, 2);
+    } finally { await server.close(); }
+  }
+});
+
+test('preserves CRLF, multiline SSE, escaped Unicode and the watermark boundary', async () => {
+  const server = await fixtureServer(url => url.pathname.endsWith('/log') ? ': comment\r\nevent: ignored\r\ndata: {"type":"message.updated",\r\ndata: "text":"café 🧪","seq":1}\r\n\r\ndata: {"type":"log.synced","seq":2}\r\n\r\ndata: {"type":"after","seq":3}\r\n\r\n' : route(url));
+  try {
+    const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target));
+    assert.equal(result.sessions[0].log.available, true, result.sessions[0].log.error ?? 'Durable log unavailable');
+    assert.equal(result.sessions[0].events[0].text, 'café 🧪');
+    assert.equal(result.sessions[0].events.length, 2);
+    assert.equal(result.sessions[0].log.watermark, 2);
+  } finally { await server.close(); }
+});
+
+for (const mode of ['reset', 'idle'] as const) test(`an SSE frame interrupted by ${mode} becomes an optional-log omission without blocking core evidence`, async context => {
+  let inLog = false;
+  if (mode === 'idle') {
+    const timer = globalThis.setTimeout;
+    // Accelerate only the production idle timer after this fixture enters its log, not the response/header or test deadline.
+    context.mock.method(globalThis, 'setTimeout', ((callback: (...args: any[]) => void, delay?: number, ...args: any[]) => timer(callback, inLog && delay === 30000 ? 100 : delay, ...args)) as typeof setTimeout);
+  }
+  const server = createServer((request, response) => {
+    const url = new URL(request.url!, 'http://localhost');
+    if (url.pathname.endsWith('/log')) {
+      inLog = true; response.setHeader('Content-Type', 'text/event-stream');
+      response.write('data: {"type":"message.updated","text":"partial');
+      if (mode === 'reset') setTimeout(() => response.destroy(new Error('Fixture reset')), 30);
+    } else {
+      const result = url.pathname === '/api/session' ? { data: [], cursor: {} } : route(url);
+      response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(result));
+    }
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const snapshot = await Promise.race([
+      new SessionSource({ url: `http://127.0.0.1:${(server.address() as any).port}`, version: '2.2.5' }).capture(capture().target),
+      new Promise<never>((_resolve, reject) => { deadline = setTimeout(() => reject(new Error('Interrupted SSE cleanup blocked the completed core capture')), 1500); }),
+    ]);
+    const result = await materialize(snapshot);
+    assert.equal(result.sessions[0].messages.length, 2);
+    assert.equal(result.sessions[0].log.available, false);
+    if (mode === 'idle') assert.match(result.sessions[0].log.error!, /stopped making progress/i);
+    assert.ok(result.warnings.some(text => /Durable log unavailable/.test(text)));
+  } finally { clearTimeout(deadline); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test('rejects object and array continuation cursors instead of accepting a partial capture', async () => {
+  for (const next of [{ token: 'page2' }, ['page2']]) {
+    const server = await fixtureServer(url => url.pathname.endsWith('/message') ? { data: [capture().sessions[0].messages[0]], cursor: { next } } : route(url));
+    try { await assert.rejects(new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target), /cursor/i); }
+    finally { await server.close(); }
+  }
 });

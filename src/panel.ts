@@ -1,5 +1,6 @@
 import { connectHost, isGuestSessionItem, type HostClient, type SessionSnapshot } from '@openchamber/sdk';
-import { applyHostReady, mountButton, mountCheckbox, mountTextField, type ButtonHandle, type CheckboxHandle } from '@openchamber/sdk/ui';
+import { applyHostReady, mountButton, mountCheckbox, mountTextField, type ButtonHandle, type CheckboxHandle, type TextFieldHandle } from '@openchamber/sdk/ui';
+import { isLocalDesktop } from './client-context.js';
 import type { AssetCandidate, ExportTarget, JobStatus, PreparedExport, RecordData } from './types.js';
 
 /** The host owns navigation; each user action owns an immutable export target. */
@@ -20,6 +21,9 @@ class ExportPanel {
   private copy: ButtonHandle;
   private more: ButtonHandle;
   private inclusion: CheckboxHandle;
+  private output: TextFieldHandle;
+  private nativeDestination = isLocalDesktop(navigator.userAgent, Array.from(location.ancestorOrigins ?? []));
+  private destinationJob = '';
 
   constructor(private host: HostClient) {
     document.querySelector('#app')!.innerHTML = `
@@ -27,7 +31,7 @@ class ExportPanel {
       <section class="target" aria-label="Selected session"><strong id="session-title">No session selected</strong><code id="session-id"></code></section>
       <p class="note">ZIP includes readable Markdown, projected JSON, sub-sessions and available durable events. Only host-exposed reasoning can be exported.</p>
       <div id="include-files"></div><p class="muted small">External files are not inspected unless enabled. Embedded data already stored in the transcript remains in JSON.</p>
-      <div id="output-directory"></div>
+      <p id="destination-note" class="muted small"></p><div id="output-directory"></div>
       <div class="buttons"><span id="export-button"></span></div>
       <section id="inventory" hidden><h2>Review local files</h2><p class="muted small">Select files explicitly. Limits: 100 MiB per file, 500 MiB in total. Symbolic links and remote resources are not collected.</p><div id="asset-list"></div><div class="buttons"><span id="more-button"></span><span id="create-button"></span></div></section>
       <p id="status" role="status" aria-live="polite"></p><p id="error" role="alert"></p>
@@ -37,7 +41,7 @@ class ExportPanel {
     this.inclusion = mountCheckbox(this.element('include-files'), { label: 'Include referenced local files', checked: false, onChange: checked => {
       this.includeFiles = checked; this.clearPreview(); this.refresh();
     } });
-    mountTextField(this.element('output-directory'), { label: 'Output directory', value: '', placeholder: 'Default: Downloads/OpenChamber-Exports', mono: true, onChange: value => { this.outputDirectory = value; } });
+    this.output = mountTextField(this.element('output-directory'), { label: 'Output directory', value: '', placeholder: 'Default: Downloads/OpenChamber-Exports', mono: true, onChange: value => { this.outputDirectory = value; } });
     this.primary = mountButton(this.element('export-button'), { label: 'Export session', disabled: true, onClick: () => void this.prepare() });
     this.create = mountButton(this.element('create-button'), { label: 'Create archive', onClick: () => void this.createArchive() });
     this.copy = mountButton(this.element('copy-button'), { label: 'Copy path', variant: 'outline', onClick: () => {
@@ -57,6 +61,7 @@ class ExportPanel {
 
   private context(directory: string, session: SessionSnapshot | null): void {
     if (directory !== this.directory || session?.id !== this.session?.id) {
+      if (this.destinationJob) void this.request('/destination/cancel', 'POST', { id: this.destinationJob }).catch(() => {});
       this.epoch++; this.includeFiles = false; this.clearPreview(); this.resultPath = '';
       this.element('result').hidden = true;
       for (const id of ['status', 'error', 'warnings']) this.text(id, '');
@@ -76,12 +81,20 @@ class ExportPanel {
     this.inclusion.update({ checked: this.includeFiles, disabled: this.busy || !this.session });
     this.create.update({ disabled: this.busy || !this.preview }); this.copy.update({ disabled: !this.resultPath });
     this.more.update({ disabled: this.busy || this.next === null });
+    this.output.update({ disabled: this.busy });
+    this.element('output-directory').hidden = this.nativeDestination;
+    this.text('destination-note', this.nativeDestination ? 'A Windows Save As dialog will open for each archive. Cancel closes it without writing a ZIP.' : 'The output path is on the OpenChamber server, not necessarily this device.');
   }
 
   private clearPreview(): void {
     this.preview = undefined; this.selected.clear(); this.next = null;
     for (const control of this.assetControls) control.dispose(); this.assetControls = [];
     this.element('asset-list').replaceChildren(); this.element('inventory').hidden = true;
+  }
+
+  private begin(): void {
+    this.busy = true; this.resultPath = ''; this.element('result').hidden = true;
+    this.text('error', ''); this.text('warnings', ''); this.text('status', 'Preparing export…'); this.refresh();
   }
 
   private async request(path: string, method: 'GET' | 'POST', data?: unknown, query?: Record<string, string>): Promise<RecordData> {
@@ -93,21 +106,19 @@ class ExportPanel {
   }
 
   private async poll(id: string): Promise<JobStatus & RecordData> {
-    const until = Date.now() + 15 * 60 * 1000;
-    while (Date.now() < until) {
+    for (;;) {
       const job = await this.request('/job', 'GET', undefined, { id });
       if (job.state === 'failed') throw new Error(job.error ?? 'The operation failed.');
       if (job.state === 'ready') return job as JobStatus & RecordData;
       this.text('status', String(job.progress ?? 'Working…'));
       await new Promise(resolve => setTimeout(resolve, 250));
     }
-    throw new Error('The operation is still running or its outcome is unknown. Check the output folder before starting another export.');
   }
 
   private async prepare(): Promise<void> {
     if (this.busy) return;
     const target = this.target(), epoch = this.epoch, includeFiles = this.includeFiles;
-    this.busy = true; this.clearPreview(); this.text('error', ''); this.refresh();
+    this.clearPreview(); this.begin();
     try {
       const started = await this.request('/prepare', 'POST', { target, inspectFiles: includeFiles });
       const ready = await this.poll(started.id);
@@ -141,18 +152,37 @@ class ExportPanel {
   private async createArchive(): Promise<void> {
     if (this.busy || !this.preview) return;
     const preview = this.preview, selected = [...this.selected];
-    this.busy = true; this.text('error', ''); this.refresh();
+    this.begin();
     try { await this.exportPrepared(preview.id, { ...preview.target }, true, selected); this.clearPreview(); }
     catch (error) { this.text('error', error instanceof Error ? error.message : 'Archive creation failed.'); }
     finally { this.busy = false; this.refresh(); }
   }
 
   private async exportPrepared(preparedID: string, target: ExportTarget, includeFiles: boolean, selectedAssetIDs: string[]): Promise<void> {
-    const started = await this.request('/export', 'POST', { preparedID, options: { includeFiles, selectedAssetIDs, outputDirectory: this.outputDirectory || undefined } });
+    const epoch = this.epoch, outputDirectory = this.outputDirectory;
+    let destinationID: string | undefined;
+    if (this.nativeDestination) {
+      const started = await this.request('/destination', 'POST', { preparedID });
+      this.destinationJob = started.id;
+      try {
+        if (epoch !== this.epoch) await this.request('/destination/cancel', 'POST', { id: started.id });
+        const destination = await this.poll(started.id);
+        if (epoch !== this.epoch || destination.destination === 'cancelled') { this.text('status', 'Export cancelled; no archive was written.'); return; }
+        if (destination.destination !== 'selected') {
+          this.nativeDestination = false; this.refresh();
+          throw new Error(`${destination.error ?? 'Save As is unavailable.'} Choose a manual output directory and export again. No archive was written.`);
+        }
+        destinationID = started.id;
+      } catch (error) {
+        await this.request('/destination/cancel', 'POST', { id: started.id }).catch(() => {});
+        throw error;
+      } finally { this.destinationJob = ''; }
+    }
+    const started = await this.request('/export', 'POST', { preparedID, destinationID, options: { includeFiles, selectedAssetIDs, outputDirectory: outputDirectory || undefined } });
     const result = await this.poll(started.id);
     this.resultPath = result.path ?? ''; this.text('result-path', this.resultPath); this.element('result').hidden = false;
     this.text('status', `Archive saved for ${target.title ?? target.sessionID}${target.sessionID !== this.session?.id ? ' (previously selected session)' : ''}.`);
-    this.text('warnings', (result.warnings ?? []).join('\n'));
+    this.text('warnings', [...(result.warnings ?? []), ...(result.additionalWarningCount ? [`${result.additionalWarningCount} additional warning(s) are recorded in the archive manifest.`] : [])].join('\n'));
   }
 }
 

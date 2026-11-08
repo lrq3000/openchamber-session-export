@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { parseGuestMessage } from '@openchamber/sdk/schemas';
 import { createService } from '../../src/service.js';
-import { capture, temporary } from '../fixtures.js';
+import { capture, diskCapture, temporary } from '../fixtures.js';
 
 const tokens = {
   background: '#ffffff', foreground: '#1f2937', elevated: '#ffffff', elevatedForeground: '#1f2937', muted: '#64748b', mutedSurface: '#f1f5f9', subtle: '#f8fafc', border: '#dbe2ea', hover: '#e2e8f0', active: '#dbeafe', primary: '#2563eb', primaryForeground: '#ffffff', primaryText: '#1f2937', successText: '#15754a', warningText: '#925f13', errorText: '#b91c1c', infoText: '#245fae', font: 'system-ui', mono: 'monospace', radius: '6px',
@@ -19,12 +19,18 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
   let blocked = false, release!: () => void, observed!: () => void;
   let gate = Promise.resolve(); let observation = Promise.resolve();
   const targets: string[] = [];
+  let chooserCalls = 0, chooserResult: any = { state: 'cancelled' };
+  let chooserGate = Promise.resolve(), chooserRelease!: () => void;
   const service = createService('ui-fixture-secret', { capture: async target => {
     targets.push(target.sessionID); observed?.(); if (blocked) await gate;
     const data = capture(); data.target = target; data.sessions[0].info.id = target.sessionID;
     data.sessions[0].messages[0].files = [{ name: 'generated-image.png', source: { type: 'file', path: image } }];
-    return data;
-  } });
+    return diskCapture(data);
+  } }, { picker: { choose: async (_name, signal) => {
+    chooserCalls++;
+    await Promise.race([chooserGate, new Promise<void>(resolve => signal.addEventListener('abort', () => resolve(), { once: true }))]);
+    return signal.aborted ? { state: 'cancelled' } : chooserResult;
+  } } });
   await new Promise<void>(resolve => service.listen(0, '127.0.0.1', resolve));
   const serviceURL = `http://127.0.0.1:${(service.address() as any).port}`;
   const seen: string[] = [];
@@ -70,6 +76,7 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
     await frame.getByRole('button', { name: 'Copy path', exact: true }).click();
     assert.ok((await page.evaluate(() => (window as any).copied)).endsWith('.zip'));
     assert.ok(!seen.includes('/inventory'));
+    assert.equal(chooserCalls, 0, 'A browser must not open a dialog on the server');
     await frame.getByRole('checkbox', { name: 'Include referenced local files', exact: true }).check();
     await frame.getByRole('button', { name: 'Review files', exact: true }).click();
     await frame.getByRole('checkbox', { name: /^Include generated-image\.png/ }).waitFor();
@@ -97,9 +104,52 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
     await frame.locator('body').evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     assert.equal(await frame.locator('body').evaluate(body => body.scrollWidth <= window.innerWidth), true);
     await page.screenshot({ path: join(root, 'panel-narrow.png'), fullPage: true });
+    // Exercise the local-desktop routing heuristic with a controlled Electron UA, not a claim that Chrome is Electron.
+    const desktop = await browser.newPage({ viewport: { width: 480, height: 920 }, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenChamber/2.6.1 Chrome/130.0 Electron/40.0.0' });
+    desktop.setDefaultTimeout(5000);
+    await desktop.goto(`http://127.0.0.1:${(host.address() as any).port}/`);
+    const native = desktop.frameLocator('iframe');
+    await native.getByRole('button', { name: 'Export session', exact: true }).waitFor();
+    const exportsBefore = seen.filter(path => path === '/export').length;
+    await native.getByRole('button', { name: 'Export session', exact: true }).click();
+    await native.getByRole('status').filter({ hasText: 'cancelled' }).waitFor();
+    assert.equal(chooserCalls, 1); assert.equal(seen.filter(path => path === '/export').length, exportsBefore);
+    chooserResult = { state: 'selected', path: join(root, 'desktop-chosen.zip') };
+    chooserGate = new Promise(resolve => chooserRelease = resolve);
+    await native.getByRole('button', { name: 'Export session', exact: true }).click();
+    await native.getByRole('status').filter({ hasText: 'Windows Save As' }).waitFor();
+    assert.equal(await native.getByRole('button', { name: 'Export session', exact: true }).isDisabled(), true);
+    // A job is permitted to span more than fifteen minutes; request-level timeouts are unchanged.
+    await native.locator('body').evaluate(() => { const now = Date.now; Date.now = () => now() + 16 * 60 * 1000; });
+    chooserRelease();
+    await native.getByRole('status').filter({ hasText: 'Archive saved' }).waitFor();
+    assert.equal(await native.locator('#result-path').innerText(), join(root, 'desktop-chosen.zip'));
+    chooserGate = Promise.resolve(); chooserResult = { state: 'unavailable', error: 'No interactive desktop.' };
+    const afterSelection = seen.filter(path => path === '/export').length;
+    await native.getByRole('button', { name: 'Export session', exact: true }).click();
+    await native.getByRole('alert').filter({ hasText: 'manual' }).waitFor();
+    assert.equal(seen.filter(path => path === '/export').length, afterSelection, 'Unavailable picker must not silently export');
+    await native.getByLabel('Output directory', { exact: true }).fill(root);
+    await native.getByRole('button', { name: 'Export session', exact: true }).click();
+    await native.getByRole('status').filter({ hasText: 'Archive saved' }).waitFor();
+    assert.notEqual(await native.locator('#result-path').innerText(), join(root, 'desktop-chosen.zip'), 'A new export must not expose the preceding success as its own result');
+    assert.equal(await native.getByRole('button', { name: 'Export session', exact: true }).isDisabled(), false);
+    await desktop.screenshot({ path: join(root, 'panel-native-fallback.png'), fullPage: true });
+    await desktop.reload();
+    chooserResult = { state: 'selected', path: join(root, 'must-not-be-created.zip') };
+    chooserGate = new Promise(resolve => chooserRelease = resolve);
+    await native.getByRole('button', { name: 'Export session', exact: true }).click();
+    await native.getByRole('status').filter({ hasText: 'Windows Save As' }).waitFor();
+    const beforeFocus = seen.filter(path => path === '/export').length;
+    await desktop.evaluate(() => (window as any).changeSession());
+    chooserRelease();
+    await native.getByRole('status').filter({ hasText: 'cancelled' }).waitFor();
+    assert.equal(seen.filter(path => path === '/export').length, beforeFocus);
+    assert.equal(existsSync(join(root, 'must-not-be-created.zip')), false);
+    await desktop.close();
     console.log(`Panel screenshots: ${root}`);
   } finally {
-    release?.(); await browser.close();
+    release?.(); chooserRelease?.(); await browser.close();
     await new Promise<void>(resolve => host.close(() => resolve()));
     await new Promise<void>(resolve => service.close(() => resolve()));
   }

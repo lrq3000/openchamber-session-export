@@ -1,18 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createService } from '../src/service.js';
-import { capture, temporary } from './fixtures.js';
+import { capture, diskCapture, temporary } from './fixtures.js';
 
 test('authenticates the service bridge and returns preparation jobs before slow capture finishes', async () => {
   let release!: () => void;
   const gate = new Promise<void>(resolve => release = resolve);
   let calls = 0;
-  const server = createService('fixture-secret', { capture: async target => { calls++; await gate; return { ...capture(), target }; }, connection: async () => ({ version: '2.2.5' }) });
+  const server = createService('fixture-secret', { capture: async target => { calls++; await gate; return diskCapture({ ...capture(), target }); }, connection: async () => ({ version: '2.2.5' }) });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const url = `http://127.0.0.1:${(server.address() as any).port}`;
   const headers = { Authorization: 'Bearer fixture-secret', 'Content-Type': 'application/json' };
   try {
     assert.equal((await fetch(url + '/health')).status, 401);
+    assert.equal((await (await fetch(url + '/health', { headers })).json() as any).version, '0.2.0');
     assert.equal(calls, 0);
     const connection = await fetch(url + '/connection', { headers });
     assert.equal(connection.status, 200);

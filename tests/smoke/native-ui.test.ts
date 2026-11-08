@@ -26,7 +26,12 @@ test('the installed extension renders through the native OpenChamber sandbox', {
     assert.equal(await frame.getByRole('checkbox', { name: 'Include referenced local files', exact: true }).isChecked(), false);
     assert.ok(await frame.getByRole('button', { name: 'Export session', exact: true }).isVisible());
     await page.getByRole('button', { name: 'Open session actions', exact: true }).click();
-    await page.getByRole('menu').getByRole('menuitem', { name: /Export complete session/ }).click();
+    const menu = page.getByRole('menu');
+    await menu.getByRole('menuitem', { name: 'Export Markdown', exact: true }).waitFor({ state: 'visible' });
+    await menu.screenshot({ path: join(root, 'native-export-menu.png') });
+    assert.equal(await menu.getByRole('menuitem', { name: 'Export Markdown', exact: true }).isVisible(), true, `Native menu evidence: ${await menu.ariaSnapshot()}; screenshot: ${root}`);
+    assert.equal(await menu.getByRole('menuitem', { name: /Export complete session/ }).isVisible(), true);
+    await menu.getByRole('menuitem', { name: /Export complete session/ }).click();
     await frame.getByRole('heading', { name: 'Session Export', exact: true }).waitFor();
     await page.screenshot({ path: join(root, 'native-panel.png'), fullPage: true });
     console.log(`Native panel screenshot: ${join(root, 'native-panel.png')}`);

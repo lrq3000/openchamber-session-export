@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { SessionSource } from '../../src/opencode.js';
-import { capture, temporary } from '../fixtures.js';
+import { capture, materialize, temporary } from '../fixtures.js';
 
 test('captures real OpenCode v2 projected reasoning and tools without a provider call', { timeout: 90000 }, async () => {
   const root = await temporary('native');
@@ -71,7 +71,7 @@ test('captures real OpenCode v2 projected reasoning and tools without a provider
       } catch { outgoing.destroy(); }
     });
     await new Promise<void>(resolve => proxy!.listen(0, '127.0.0.1', resolve));
-    const result = await new SessionSource({ url: `http://127.0.0.1:${(proxy.address() as any).port}`, version }).capture({ sessionID: id, title: 'Native export evidence', directory: project });
+    const result = await materialize(await new SessionSource({ url: `http://127.0.0.1:${(proxy.address() as any).port}`, version }).capture({ sessionID: id, title: 'Native export evidence', directory: project }));
     assert.equal(result.sessions[0].messages.length, 2);
     assert.equal(result.sessions[0].messages[1].content[0].type, 'reasoning');
     assert.equal(result.sessions[0].messages[1].content[1].state.input.path, 'a.ts');
