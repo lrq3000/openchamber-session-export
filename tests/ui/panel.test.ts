@@ -62,7 +62,12 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
     } else { res.writeHead(404); res.end(); }
   });
   await new Promise<void>(resolve => host.listen(0, '127.0.0.1', resolve));
-  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  // Reuse an explicitly selected installed Chromium without downloading a browser or changing the normal Chrome default.
+  const browser = await chromium.launch({ ...(process.env.SESSION_EXPORT_BROWSER ? { executablePath: process.env.SESSION_EXPORT_BROWSER } : { channel: 'chrome' }), headless: true }).catch(async error => {
+    await new Promise<void>(resolve => host.close(() => resolve()));
+    await new Promise<void>(resolve => service.close(() => resolve()));
+    throw error;
+  });
   try {
     const page = await browser.newPage({ viewport: { width: 480, height: 920 } });
     page.setDefaultTimeout(3000); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));

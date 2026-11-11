@@ -1,0 +1,19 @@
+{
+  "sourceRepository": "https://github.com/lrq3000/lrq3000_agent_skills",
+  "sourceBase": "c9da021f3e0da9210038782827021044836d7265",
+  "extractedHead": "b7c30c861e8a7663e93c0f8d35b22fece42c7476",
+  "pluginPrefix": "plugins/openchamber-session-export/",
+  "documents": [
+    "docs/superpowers/plans/2026-11-07-openchamber-session-export.md",
+    "docs/superpowers/plans/2026-11-07-session-export-streaming.md",
+    "docs/superpowers/specs/2026-11-07-openchamber-session-export-design.md",
+    "docs/superpowers/specs/2026-11-07-openchamber-session-export-validation.md",
+    "docs/superpowers/specs/2026-11-07-session-export-streaming-design.md",
+    "docs/superpowers/specs/2026-11-07-session-export-streaming-validation.md"
+  ],
+  "commits": [
+    { "source": "d63cfce69459136e09643ed8454c3cf7e5fa2b23", "extracted": "c9e701e2145948303c901bd170bf2e27ebaeb639" },
+    { "source": "e39d9f6cdd2d47c3ab80533152e5e592fb4d16af", "extracted": "bf765a816ac493d72332f9bf3dfcc2c9df2035d8" },
+    { "source": "591b11405959c1c58622a1d0ea870258e9cb2b2c", "extracted": "b7c30c861e8a7663e93c0f8d35b22fece42c7476" }
+  ]
+}

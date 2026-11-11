@@ -1,9 +1,12 @@
 {
   "name": "openchamber-session-export",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
-  "metadata": { "version": "0.2.0", "creation": "2026-11-07", "last_updated": "2026-11-08" },
+  "metadata": { "version": "0.2.1", "creation": "2026-11-07", "last_updated": "2026-11-12" },
+  "repository": { "type": "git", "url": "git+https://github.com/lrq3000/openchamber-session-export.git" },
+  "homepage": "https://github.com/lrq3000/openchamber-session-export#readme",
+  "bugs": { "url": "https://github.com/lrq3000/openchamber-session-export/issues" },
   "engines": { "node": ">=22.13.0" },
   "scripts": {
     "typecheck": "tsc --noEmit",

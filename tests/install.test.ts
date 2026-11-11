@@ -28,7 +28,7 @@ test('installs a stable folder with native service-only approval and preserves e
     if (request.url === '/api/guests/session-export/capabilities' && request.method === 'PUT') {
       changes.push({ method: 'PUT', body }); installed.capabilities.granted = body.granted; installed.service.granted = true; return reply({ guest: installed });
     }
-    if (request.url === '/api/guests/session-export/service/request' && request.method === 'POST') return reply({ status: 200, body: JSON.stringify(body.path === '/connection' ? { version: '2.2.5' } : { ok: true, version: '0.2.0' }) });
+    if (request.url === '/api/guests/session-export/service/request' && request.method === 'POST') return reply({ status: 200, body: JSON.stringify(body.path === '/connection' ? { version: '2.2.5' } : { ok: true, version: '0.2.1' }) });
     reply({ error: 'Unexpected installer request' }, 404);
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
