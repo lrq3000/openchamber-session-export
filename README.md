@@ -8,6 +8,8 @@ The independent public source is [lrq3000/openchamber-session-export](https://gi
 
 This is an **OpenChamber extension**, not an OpenCode backend plugin or an Agent Skill. Install the complete built `openchamber/` directory. Do not add this package to OpenCode's `plugins` array. The development package uses Node >=22.13; native validation used Node 24.22.2, OpenChamber 2.6.1 and its managed OpenCode 2.2.5. The separately installed terminal OpenCode may be a different version and server.
 
+Since OpenChamber v2.7.1, plugins are supported on Android and iOS, as well as in the desktop and web interfaces. The Windows-host and authentication requirements below still apply. Exported ZIPs are saved on the service host, not automatically to the mobile device.
+
 Automatic connection discovery currently supports **Windows desktop-hosted OpenChamber with UI authentication disabled**. A browser connected to that same desktop host can use the extension too. Standalone/remote hosts, non-Windows owner verification and UI-password authentication are not claimed supported. Unsupported or ambiguous connections fail closed; the extension does not extract passwords, scan ports, start another server or fall back to the terminal service. This compatibility restriction is preferable to silently exporting a similarly named session from the wrong instance.
 
 Build from this development directory:
