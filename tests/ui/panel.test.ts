@@ -72,7 +72,8 @@ test('the real SDK export panel', { timeout: 45000 }, async t => {
   const host = createServer(async (req, res) => {
     if (req.url === '/') {
       res.setHeader('Content-Type', 'text/html');
-      res.end(`<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Session Export SDK QA</title></head><body style="margin:0"><iframe title="Session Export" sandbox="allow-scripts" src="/panel" style="border:0;width:100%;height:900px"></iframe><script>
+      // Match the host's viewport-sized panel: a taller fixture creates a second scroll owner and can misroute compatibility clicks after touch in older Chromium.
+      res.end(`<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Session Export SDK QA</title></head><body style="margin:0"><iframe title="Session Export" sandbox="allow-scripts" src="/panel" style="border:0;width:100%;height:100dvh;display:block"></iframe><script>
       window.copied='';window.calls=[];
       window.changeSession=(title='Another session')=>{const f=document.querySelector('iframe');f.contentWindow.postMessage({channel:'openchamber.sdk',v:1,type:'session',payload:{session:{id:'ses_other',title,busy:false}}},'*')};
       addEventListener('message',async e=>{const m=e.data;if(!m.channel)return;
@@ -174,6 +175,14 @@ test('the real SDK export panel', { timeout: 45000 }, async t => {
     const phone = await browser.newPage({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36' });
     const phoneErrors: string[] = [];
     phone.setDefaultTimeout(5000); phone.on('pageerror', error => phoneErrors.push(error.message));
+    await phone.addInitScript(() => {
+      (window as any).touchEvidence = [];
+      for (const type of ['touchstart', 'touchend', 'click']) document.addEventListener(type, event => {
+        const target = event.target as HTMLElement, pointer = event as MouseEvent;
+        const touch = (event as TouchEvent).changedTouches?.[0];
+        (window as any).touchEvidence.push({ type, target: target.closest('button,summary')?.textContent, x: touch?.clientX ?? pointer.clientX, y: touch?.clientY ?? pointer.clientY, scrollY, viewport: visualViewport?.offsetTop });
+      }, true);
+    });
     await phone.goto(`http://127.0.0.1:${(host.address() as any).port}/`);
     const mobile = phone.frameLocator('iframe'), chooserBeforePhone = chooserCalls;
     await mobile.getByLabel('Output directory', { exact: true }).fill(root);
@@ -187,6 +196,10 @@ test('the real SDK export panel', { timeout: 45000 }, async t => {
     const includeImage = mobile.getByRole('checkbox', { name: /^Include generated-image\.png/ });
     await includeImage.waitFor(); assert.equal(await includeImage.isChecked(), false);
     await includeImage.tap();
+    const touchEvidence = await mobile.locator('body').evaluate(() => (window as any).touchEvidence);
+    await writeFile(join(root, 'panel-phone-touch-events.json'), JSON.stringify(touchEvidence, null, 2));
+    assert.equal(await includeImage.isChecked(), true, `The touch selection must actually check the reviewed file; events: ${JSON.stringify(touchEvidence)}`);
+    assert.equal(await phone.evaluate(() => scrollY === 0 && document.documentElement.scrollHeight <= innerHeight), true, 'Only the panel, not the synthetic host, should scroll');
     await phone.screenshot({ path: join(root, 'panel-phone-review.png') });
     await mobile.getByRole('button', { name: 'Create archive', exact: true }).tap();
     await mobile.getByRole('status').filter({ hasText: 'Archive saved' }).waitFor().catch(async error => {

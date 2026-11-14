@@ -38,6 +38,8 @@
 
 ## Execution ledger
 
-Pre-flight: one task; no interface changes. Baseline failure was reproduced both in the full upstream suite and alone before source edits. A fresh read-only investigator confirmed the installed provider's All-sections write and fallback comparison using runtime IL; candidate setter behavior still needs runtime verification.
+Pre-flight: one task; no interface changes. Baseline failure was reproduced both in the full upstream suite and alone before source edits. A fresh read-only investigator confirmed the installed provider's All-sections write and fallback comparison using runtime IL; the proposed setter was then verified by the real-filesystem regression below.
 
 Runtime verification confirms repeated root/child hardening and exact Owner/Access read-back on this Windows host. Each protected directory has only the current SID's Allow/FullControl rule, with ContainerInherit/ObjectInherit and no inherited or unrelated grants. A newly created child first inherits that private grant and can then be hardened repeatedly. No process elevation, audit-policy modification, live-directory ACL modification, or error suppression was used. Non-Windows checks are present but were not executed on this Windows host.
+
+Milestone committed separately as `9a1b7c6`. Final unit suite passes 76/76, and both final full UI runs pass 5/5 after the separately requested fixture correction. The independent read-only whole-branch review found no issues in the ACL implementation, regression, or rebuilt bundle correspondence.
