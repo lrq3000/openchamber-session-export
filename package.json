@@ -8,6 +8,15 @@
   "homepage": "https://github.com/lrq3000/openchamber-session-export#readme",
   "bugs": { "url": "https://github.com/lrq3000/openchamber-session-export/issues" },
   "engines": { "node": ">=22.13.0" },
+  "openchamber": {
+    "apiVersion": 1,
+    "engines": { "openchamber": ">=2.7.1" },
+    "contributes": {
+      "panel": { "id": "session-export", "name": "Session Export", "icon": "download-line", "entry": "openchamber/panel/index.html", "mobile": true },
+      "actions": [{ "id": "export-session", "label": "Export complete session", "icon": "download-line", "where": "session" }],
+      "service": { "entry": "openchamber/service.cjs", "runtime": "host", "provides": ["opencode"], "permissions": { "exec": ["powershell.exe"] } }
+    }
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test tests/*.test.ts",

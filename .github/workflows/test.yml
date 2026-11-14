@@ -23,4 +23,6 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npm run typecheck
       - run: npm run build
+      - name: Verify shipped bundles match their sources
+        run: git diff --exit-code -- openchamber/panel/app.js openchamber/service.cjs
       - run: npm test
