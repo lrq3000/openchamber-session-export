@@ -7,6 +7,7 @@ import { Readable, type Duplex } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import parser, { type Token } from 'stream-json/parser.js';
 import pick from 'stream-json/filters/pick.js';
+import ignore from 'stream-json/filters/ignore.js';
 import stringer from 'stream-json/stringer.js';
 
 export type JsonPath = readonly (string | number)[];
@@ -105,6 +106,18 @@ export class JsonDocument {
       for await (const chunk of output) yield String(chunk);
       await completed; if (failure) throw failure;
     } finally { input.destroy(); output.destroy(); await completed; }
+  }
+
+  /** Remove only named control fields without assembling a potentially enormous message. */
+  async *jsonExcluding(paths: JsonPath[]): AsyncGenerator<string> {
+    const input = Readable.from(this.tokens()), filtered = ignore.asStream({
+      filter: (stack: (string | number | null)[]) => paths.some(path => path.length === stack.length && path.every((key, index) => stack[index] === key)),
+    }), output = stringifier();
+    output.setEncoding('utf8');
+    let failure: unknown;
+    const completed = pipeline(input, filtered, output).catch(error => { failure = error; });
+    try { for await (const chunk of output) yield String(chunk); await completed; if (failure) throw failure; }
+    finally { input.destroy(); filtered.destroy(); output.destroy(); await completed; }
   }
 
   /** Split one array in a single pass. Each item is staged before yielding, so even one enormous message stays disk-backed. */

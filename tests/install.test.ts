@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { runInNewContext } from 'node:vm';
 import { temporary } from './fixtures.js';
+const approvals = ['service', 'opencode', 'opencodePlugin', 'sessions'];
 
 test('installs a stable folder with exactly native service and OpenCode approval and preserves existing registrations', async () => {
   const root = await temporary('install');
@@ -23,7 +24,7 @@ test('installs a stable folder with exactly native service and OpenCode approval
     if (request.url === '/api/guests' && request.method === 'GET') return reply({ guests: [other, ...(installed ? [installed] : [])] });
     if (request.url === '/api/guests' && request.method === 'POST') {
       changes.push({ method: 'POST', body });
-      installed = { id: 'session-export', path: body.path, enabled: true, capabilities: { requested: ['service', 'opencode'], granted: [] }, service: { granted: false } };
+      installed = { id: 'session-export', path: body.path, enabled: true, capabilities: { requested: approvals, granted: [] }, service: { granted: false } };
       return reply({ guest: installed }, 201);
     }
     if (request.url === '/api/guests/session-export/capabilities' && request.method === 'PUT') {
@@ -34,16 +35,17 @@ test('installs a stable folder with exactly native service and OpenCode approval
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const installer = resolve('scripts/install.mjs');
-  const run = (destinationArgument = destination) => new Promise<{ code: number | null; output: string; error: string }>(resolveRun => {
-    const child = spawn(process.execPath, [installer, '--yes', '--host', `http://127.0.0.1:${(server.address() as any).port}`, '--destination', destinationArgument, '--registry', registry], { cwd: root, env: { ...process.env, TMPDIR: root, TMP: root, TEMP: root, SESSION_EXPORT_TEST_TMP: undefined }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const run = (destinationArgument = destination, approve = true) => new Promise<{ code: number | null; output: string; error: string }>(resolveRun => {
+    const child = spawn(process.execPath, [installer, '--yes', ...(approve ? ['--approve-bundled-plugin'] : []), '--host', `http://127.0.0.1:${(server.address() as any).port}`, '--destination', destinationArgument, '--registry', registry], { cwd: root, env: { ...process.env, TMPDIR: root, TMP: root, TEMP: root, SESSION_EXPORT_TEST_TMP: undefined }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '', error = ''; child.stdout.on('data', chunk => output += chunk); child.stderr.on('data', chunk => error += chunk);
     child.on('close', code => resolveRun({ code, output, error }));
   });
   try {
+    const unapproved = await run(destination, false); assert.notEqual(unapproved.code, 0); assert.match(unapproved.error, /approve-bundled-plugin/); assert.equal(changes.length, 0);
     const relative = await run('relative-folder'); assert.notEqual(relative.code, 0); assert.equal(changes.length, 0);
     const result = await run(); assert.equal(result.code, 0, result.error);
-    assert.deepEqual(changes, [{ method: 'POST', body: { path: destination } }, { method: 'PUT', body: { granted: ['service', 'opencode'] } }]);
-    assert.equal((await readFile(join(destination, 'package.json'))).equals(await readFile('openchamber/package.json')), true);
+    assert.deepEqual(changes, [{ method: 'POST', body: { path: destination } }, { method: 'PUT', body: { granted: approvals } }]);
+    for (const file of ['package.json', 'panel/index.html', 'panel/app.js', 'service.cjs', 'plugin/package.json', 'plugin/index.js']) assert.deepEqual(await readFile(join(destination, file)), await readFile(join('openchamber', file)));
     assert.equal(await readFile(registry, 'utf8'), original);
     const metadata = JSON.parse(result.output); assert.equal(await readFile(metadata.backup, 'utf8'), original);
     assert.equal(dirname(dirname(metadata.backup)), join(root, 'opencode'));
@@ -55,7 +57,7 @@ test('installs a stable folder with exactly native service and OpenCode approval
 
 test('updates only an exactly fingerprinted existing extension after backup and a targeted native pause', async () => {
   const root = await temporary('update'), destination = join(root, 'session-export'), registry = join(root, 'extensions.json'), hashesPath = join(root, 'expected.json');
-  const files = ['package.json', 'panel/index.html', 'panel/app.js', 'service.cjs'];
+  const files = ['package.json', 'panel/index.html', 'panel/app.js', 'service.cjs', 'plugin/package.json', 'plugin/index.js'];
   const original = new Map<string, Buffer>(), hashes: Record<string, string> = {};
   for (const file of files) {
     const bytes = Buffer.from(file === 'package.json' ? JSON.stringify({ name: 'openchamber-session-export', version: '0.0.1', openchamber: { contributes: { panel: { id: 'session-export' } } } }) : `old fixture ${file}`);
@@ -65,7 +67,7 @@ test('updates only an exactly fingerprinted existing extension after backup and 
   await writeFile(join(destination, 'retain.txt'), 'unrelated local file');
   await writeFile(registry, '{"other":"preserved"}\n');
   const other = { id: 'other', path: '/other', enabled: true, capabilities: { granted: ['network'] } };
-  const installed = { id: 'session-export', path: destination, enabled: true, capabilities: { requested: ['service', 'opencode'], granted: ['service', 'opencode'] } };
+  const installed = { id: 'session-export', path: destination, enabled: true, capabilities: { requested: approvals, granted: approvals } };
   const changes: unknown[] = [];
   let readinessProbes = 0;
   const server = createServer(async (request, response) => {
@@ -97,7 +99,7 @@ test('updates only an exactly fingerprinted existing extension after backup and 
     installed.capabilities.granted = ['service'];
     const unapproved = await run(); assert.notEqual(unapproved.code, 0); assert.deepEqual(changes, []);
     for (const file of files) assert.deepEqual(await readFile(join(destination, file)), original.get(file));
-    installed.capabilities.granted = ['opencode', 'service'];
+    installed.capabilities.granted = [...approvals];
     const result = await run(); assert.equal(result.code, 0, result.error);
     assert.deepEqual(changes, [{ enabled: false }, { enabled: true }]);
     const metadata = JSON.parse(result.output);
@@ -138,7 +140,7 @@ test('rejects cross-filesystem update staging before pausing or replacing an ins
   }) as (input: Record<string, unknown>) => Promise<unknown>;
   const outcome = await update({
     destination, temporary, source: resolve('fixture-source'), files, registry: resolve('fixture-registry.json'), expectedVersion: '0.0.1', expectedHashesPath: hashesPath,
-    before: { guests: [{ id: 'session-export', path: destination, enabled: true, capabilities: { requested: ['service', 'opencode'], granted: ['service', 'opencode'] } }] },
+    before: { guests: [{ id: 'session-export', path: destination, enabled: true, capabilities: { requested: approvals, granted: approvals } }] },
     request: async (path: string, method: string, body: unknown) => { mutations.push({ path, method, body }); return {}; },
   }).catch(error => error);
   assert.deepEqual(mutations, [], 'Cross-filesystem staging must fail before touching native controls or installed files');

@@ -14,21 +14,28 @@ export interface Capture {
 export interface CaptureSnapshot {
   root: string; target: ExportTarget; startedAt: string; endedAt: string; serverVersion: string | null;
   sessionCount: number; messageCount: number; warnings: string[]; warningCount: number;
+  profile?: ExportProfile; retainHistory?: boolean;
+  extras?: { name: string; path: string }[];
 }
 export interface SessionRecord {
   id: string; parentID?: string; title: string; infoPath: string; messagesPath: string; messageIndex: string;
   messageCount: number; active: boolean | null; changed: boolean;
   eventsPath?: string; log: CapturedSession['log'];
+  /** Optional portable context/instructions are captured through the approved bundled plugin. */
+  instructionsPath?: string; contextPath?: string;
 }
+export type ExportProfile = 'complete' | 'resume';
+export interface CaptureOptions { profile?: ExportProfile; retainHistory?: boolean; signal?: AbortSignal }
 export interface AssetCandidate {
   id: string; path: string; name: string; sessions: string[]; size: number;
   /** Backend index of every referring session; the bridge returns only a bounded origin preview. */
   sessionIndex?: string; sourceSessionCount?: number; additionalSessionCount?: number;
   status: 'available' | 'missing' | 'refused'; reason?: string;
   fingerprint?: { dev: number; ino: number; size: number; mtimeMs: number };
+  recommendations?: ('pinned' | 'recent')[];
 }
-export interface PreparedExport { id: string; target: ExportTarget; assets: AssetCandidate[]; warnings: string[]; assetCount?: number; warningCount?: number }
-export interface ExportOptions { includeFiles?: boolean; selectedAssetIDs?: string[]; outputDirectory?: string; outputFile?: string }
+export interface PreparedExport { id: string; target: ExportTarget; assets: AssetCandidate[]; warnings: string[]; assetCount?: number; warningCount?: number; profile?: ExportProfile }
+export interface ExportOptions { includeFiles?: boolean; selectedAssetIDs?: string[]; outputDirectory?: string; outputFile?: string; signal?: AbortSignal }
 export interface JobStatus {
   id: string; target: ExportTarget; state: 'running' | 'ready' | 'failed'; progress: string;
   prepared?: PreparedExport; path?: string; size?: number; warnings?: string[]; warningCount?: number; error?: string;

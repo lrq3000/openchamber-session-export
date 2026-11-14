@@ -16,18 +16,33 @@ export class AttachmentInventory {
     for await (const session of store.sessions(capture)) {
       const info = new JsonDocument(session.infoPath);
       const directory = String(await info.scalar(['location', 'directory']) ?? capture.target.directory);
+      const pins = new Set<string>(), recent = new Set<string>();
+      if (await info.kind(['metadata', 'openchamber', 'context_obligatory_messages']) === 'array') {
+        for await (const pin of info.array(['metadata', 'openchamber', 'context_obligatory_messages'], join(store.root, 'asset-pin-records'))) {
+          const id = await pin.scalar(['id']) ?? await pin.scalar([]);
+          if (typeof id === 'string') pins.add(id);
+        }
+      }
+      if (session.contextPath) for await (const item of new JsonDocument(session.contextPath).array([], join(store.root, 'asset-context-records'))) {
+        const id = await item.scalar(['id']); if (typeof id === 'string') recent.add(id);
+      }
       for await (const message of store.messages(session)) {
         for await (const reference of this.references(new JsonDocument(message.path), store)) {
           const path = localPath(reference, directory); if (!path) continue;
           const id = createHash('sha256').update(path).digest('hex').slice(0, 24), sessionIndex = `asset-origins-${id}`;
           if (await store.claim('assets', path)) await store.append('discovered-assets', { ...await this.inspect(path, id), sessionIndex });
           if (await store.claim(`asset-origin-${id}`, session.id)) await store.append(sessionIndex, { sessionID: session.id });
+          for (const reason of [pins.has(message.id) ? 'pinned' : '', recent.has(message.id) || capture.profile === 'resume' && !pins.has(message.id) ? 'recent' : '']) {
+            if (reason && await store.claim(`asset-reasons-${id}`, reason)) await store.append(`asset-reasons-${id}`, reason);
+          }
         }
       }
     }
     for await (const asset of store.records<AssetCandidate>('discovered-assets')) {
       let count = 0; for await (const _ of store.records(asset.sessionIndex!)) count++;
-      yield { ...asset, sourceSessionCount: count };
+      const recommendations: NonNullable<AssetCandidate['recommendations']> = [];
+      for await (const reason of store.records<'pinned' | 'recent'>(`asset-reasons-${asset.id}`)) recommendations.push(reason);
+      yield { ...asset, sourceSessionCount: count, recommendations };
     }
   }
 

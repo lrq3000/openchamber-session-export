@@ -1864,6 +1864,11 @@ ${GUEST_UI_LOOK_CSS}`;
 
   // node_modules/@openchamber/sdk/dist/ui/dom.js
   var STYLE_ID = "oc-sdk-ui-style";
+  var clearNode = (node) => {
+    while (node.firstChild) {
+      node.removeChild(node.firstChild);
+    }
+  };
   var ensureStyle = (css) => {
     const existing = document.getElementById(STYLE_ID);
     if (existing instanceof HTMLStyleElement) {
@@ -1902,6 +1907,18 @@ ${GUEST_UI_LOOK_CSS}`;
     } else if (node.getAttribute(name) !== value) {
       node.setAttribute(name, value);
     }
+  };
+  var onOutsideClick = (node, handler) => {
+    const listener = (event) => {
+      if (event.target instanceof Node && node.contains(event.target)) {
+        return;
+      }
+      handler();
+    };
+    document.addEventListener("pointerdown", listener, true);
+    return () => {
+      document.removeEventListener("pointerdown", listener, true);
+    };
   };
 
   // node_modules/@openchamber/sdk/dist/ui/button.js
@@ -2026,6 +2043,277 @@ ${GUEST_UI_LOOK_CSS}`;
     return node;
   };
 
+  // node_modules/@openchamber/sdk/dist/ui/navigation.js
+  var navigationKey = (event, axis = "vertical") => {
+    const [next, previous] = axis === "vertical" ? ["ArrowDown", "ArrowUp"] : ["ArrowRight", "ArrowLeft"];
+    if (event.key === next || event.ctrlKey && event.key.toLowerCase() === "n")
+      return "next";
+    if (event.key === previous || event.ctrlKey && event.key.toLowerCase() === "p")
+      return "previous";
+    if (event.key === "Home")
+      return "first";
+    if (event.key === "End")
+      return "last";
+    return null;
+  };
+  var moveListSelection = (items, currentId, key) => {
+    const enabled = items.filter((item) => !item.disabled);
+    if (enabled.length === 0) {
+      return null;
+    }
+    const first = enabled[0];
+    const last = enabled[enabled.length - 1];
+    if (key === "first" || !first || !last) {
+      return first?.id ?? null;
+    }
+    if (key === "last") {
+      return last.id;
+    }
+    const index = enabled.findIndex((item) => item.id === currentId);
+    if (index === -1) {
+      return key === "next" ? first.id : last.id;
+    }
+    const target = enabled[Math.min(enabled.length - 1, Math.max(0, index + (key === "next" ? 1 : -1)))];
+    return target?.id ?? null;
+  };
+
+  // node_modules/@openchamber/sdk/dist/ui/option.js
+  var optionId = (uid, id) => `${uid}-${id ?? ""}`;
+  var createOption = (uid, role, spec, on) => {
+    const node = button("oc-sdk-option");
+    node.id = optionId(uid, spec.id);
+    node.setAttribute("role", role);
+    node.tabIndex = -1;
+    node.disabled = Boolean(spec.disabled);
+    if (role === "option") {
+      node.setAttribute("aria-selected", spec.selected ? "true" : "false");
+    }
+    node.dataset.destructive = spec.destructive ? "true" : "false";
+    const label = el("span", "oc-sdk-option-label");
+    label.textContent = spec.label;
+    node.append(label);
+    if (spec.hint) {
+      const hint = el("span", "oc-sdk-option-hint");
+      hint.textContent = spec.hint;
+      node.append(hint);
+    }
+    if (role === "option") {
+      node.dataset.mark = "check";
+      const check = el("span", "oc-sdk-option-check");
+      check.append(icon("check", 14));
+      node.append(check);
+    }
+    node.addEventListener("pointerenter", on.hover);
+    node.addEventListener("click", on.pick);
+    return node;
+  };
+  var highlightOption = (container, focusOwner, uid, id) => {
+    const target = optionId(uid, id);
+    for (const child of Array.from(container.children)) {
+      if (child instanceof HTMLElement && child.classList.contains("oc-sdk-option")) {
+        child.dataset.active = child.id === target ? "true" : "false";
+      }
+    }
+    setAttr(focusOwner, "aria-activedescendant", id ? target : null);
+    container.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
+  };
+
+  // node_modules/@openchamber/sdk/dist/ui/popup.js
+  var placePopup = (popup, trigger) => {
+    const rect = trigger.getBoundingClientRect();
+    popup.style.minWidth = `${Math.round(rect.width)}px`;
+    popup.style.left = `${Math.round(rect.left)}px`;
+    popup.style.top = `${Math.round(rect.bottom + 4)}px`;
+    const height = popup.offsetHeight;
+    const roomBelow = window.innerHeight - rect.bottom - 8;
+    if (height > roomBelow && rect.top - 8 > roomBelow) {
+      popup.style.top = `${Math.max(8, Math.round(rect.top - 4 - height))}px`;
+    }
+    const overflow = rect.left + popup.offsetWidth - window.innerWidth + 8;
+    if (overflow > 0) {
+      popup.style.left = `${Math.max(8, Math.round(rect.left - overflow))}px`;
+    }
+  };
+  var openPopup = (host, trigger, popup, close) => {
+    host.append(popup);
+    placePopup(popup, trigger);
+    const stopOutside = onOutsideClick(host, close);
+    const onResize = () => {
+      close();
+    };
+    const onScroll = (event) => {
+      if (event.target instanceof Node && popup.contains(event.target)) {
+        return;
+      }
+      close();
+    };
+    window.addEventListener("resize", onResize);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      stopOutside();
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll, true);
+      popup.remove();
+    };
+  };
+
+  // node_modules/@openchamber/sdk/dist/ui/select.js
+  var filterSelectOptions = (options, query) => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) {
+      return [...options];
+    }
+    return options.filter((option) => option.label.toLowerCase().includes(needle) || option.id.toLowerCase().includes(needle));
+  };
+  var selectCount = 0;
+  var mountSelect = (root, initial) => {
+    ensureStyle(UI_CSS);
+    let props = initial;
+    const uid = `oc-sdk-select-${selectCount += 1}`;
+    const wrap = el("div", "oc-sdk oc-sdk-select");
+    const caption = el("span", "oc-sdk-field-label");
+    caption.id = `${uid}-label`;
+    const trigger = button("oc-sdk-trigger");
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-labelledby", caption.id);
+    const value = el("span", "oc-sdk-trigger-value");
+    trigger.append(value, icon("chevron", 14, "oc-sdk-trigger-chevron"));
+    wrap.append(caption, trigger);
+    root.append(wrap);
+    let query = "";
+    let activeId = null;
+    let closePopup = null;
+    const popup = el("div", "oc-sdk oc-sdk-popup");
+    const searchSlot = el("div", "oc-sdk-popup-search");
+    const search = el("input", "oc-sdk-input");
+    search.type = "text";
+    search.autocomplete = "off";
+    searchSlot.append(search);
+    const listbox = el("div");
+    listbox.setAttribute("role", "listbox");
+    listbox.tabIndex = -1;
+    popup.append(listbox);
+    const visible = () => filterSelectOptions(props.options, props.searchable ? query : "");
+    const focusOwner = () => props.searchable ? search : listbox;
+    const setActive = (id) => {
+      activeId = id;
+      highlightOption(listbox, focusOwner(), uid, id);
+    };
+    const paintOptions = () => {
+      clearNode(listbox);
+      const options = visible();
+      if (options.length === 0) {
+        const empty = el("div", "oc-sdk-popup-empty");
+        empty.textContent = "No matches";
+        listbox.append(empty);
+      }
+      for (const option of options) {
+        listbox.append(createOption(uid, "option", { ...option, selected: option.id === props.value }, {
+          hover: () => setActive(option.id),
+          pick: () => pick(option.id)
+        }));
+      }
+      setActive(options.some((option) => option.id === activeId) ? activeId : options[0]?.id ?? null);
+    };
+    const close = () => {
+      const dispose = closePopup;
+      closePopup = null;
+      dispose?.();
+      query = "";
+      search.value = "";
+      trigger.setAttribute("aria-expanded", "false");
+    };
+    const open = () => {
+      if (closePopup || props.disabled) {
+        return;
+      }
+      activeId = props.value;
+      search.placeholder = props.searchPlaceholder ?? "Search";
+      if (props.searchable)
+        popup.prepend(searchSlot);
+      else
+        searchSlot.remove();
+      paintOptions();
+      closePopup = openPopup(wrap, trigger, popup, close);
+      trigger.setAttribute("aria-expanded", "true");
+      focusOwner().focus();
+    };
+    const pick = (id) => {
+      close();
+      trigger.focus();
+      if (id !== props.value)
+        props.onChange(id);
+    };
+    const onTriggerClick = () => {
+      if (closePopup)
+        close();
+      else
+        open();
+    };
+    const onTriggerKey = (event) => {
+      if (!closePopup && navigationKey(event)) {
+        event.preventDefault();
+        open();
+      }
+    };
+    const onPopupKey = (event) => {
+      const step = navigationKey(event);
+      if (step) {
+        event.preventDefault();
+        setActive(moveListSelection(visible(), activeId, step));
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        if (activeId)
+          pick(activeId);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+        trigger.focus();
+      } else if (props.searchable && event.target !== search && event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+        search.focus();
+      }
+    };
+    const onSearchInput = () => {
+      query = search.value;
+      paintOptions();
+    };
+    const onFocusOut = (event) => {
+      if (closePopup && !(event.relatedTarget instanceof Node && wrap.contains(event.relatedTarget)))
+        close();
+    };
+    const paint = () => {
+      setText(caption, props.label);
+      caption.hidden = !props.label;
+      const current = props.options.find((option) => option.id === props.value);
+      setText(value, current?.label ?? props.placeholder ?? "Select");
+      value.dataset.empty = current ? "false" : "true";
+      trigger.disabled = Boolean(props.disabled);
+      if (closePopup)
+        paintOptions();
+    };
+    trigger.addEventListener("click", onTriggerClick);
+    trigger.addEventListener("keydown", onTriggerKey);
+    popup.addEventListener("keydown", onPopupKey);
+    search.addEventListener("input", onSearchInput);
+    wrap.addEventListener("focusout", onFocusOut);
+    paint();
+    return {
+      update: (next) => {
+        props = { ...props, ...next };
+        paint();
+      },
+      dispose: () => {
+        close();
+        trigger.removeEventListener("click", onTriggerClick);
+        trigger.removeEventListener("keydown", onTriggerKey);
+        popup.removeEventListener("keydown", onPopupKey);
+        search.removeEventListener("input", onSearchInput);
+        wrap.removeEventListener("focusout", onFocusOut);
+        wrap.remove();
+      }
+    };
+  };
+
   // node_modules/@openchamber/sdk/dist/ui/checkbox.js
   var mountToggle = (root, initial, role) => {
     ensureStyle(UI_CSS);
@@ -2080,6 +2368,248 @@ ${GUEST_UI_LOOK_CSS}`;
     }
   }
 
+  // src/constants.ts
+  var IMPORT_NOTICE = "Importing always creates a new session. OpenCode\u2019s import API cannot update an existing session.";
+
+  // src/panel-api.ts
+  async function serviceRequest(host, path, method = "GET", data, query) {
+    const response = await host.serviceRequest({ path, method, query, ...data === void 0 ? {} : { body: JSON.stringify(data) } });
+    let value;
+    try {
+      value = JSON.parse(response.body);
+    } catch {
+      throw new Error("The extension service returned invalid metadata.");
+    }
+    if (response.status < 200 || response.status >= 300) throw new Error(value.error ?? "The extension service is unavailable.");
+    return value;
+  }
+  var pause = () => new Promise((resolve) => setTimeout(resolve, 250));
+  var formatBytes = (bytes) => bytes < 1024 ? `${bytes} B` : bytes < 1024 ** 2 ? `${(bytes / 1024).toFixed(1)} KiB` : bytes < 1024 ** 3 ? `${(bytes / 1024 ** 2).toFixed(1)} MiB` : `${(bytes / 1024 ** 3).toFixed(2)} GiB`;
+
+  // src/import-panel.ts
+  var ImportPanel = class {
+    constructor(host, root) {
+      this.host = host;
+      root.innerHTML = `<h2>Import a session archive</h2>
+      <p><em id="import-notice">${IMPORT_NOTICE}</em></p>
+      <p class="small">Import only trusted archives. Restored instructions and pinned content can influence the agent when you continue the new session.</p>
+      <p class="muted small">Choose a ZIP on this device, or provide a ZIP path on the selected OpenChamber server after moving it with Files, SFTP, or another tool.</p>
+      <label class="small" for="import-file">ZIP on this device</label><input id="import-file" type="file" accept=".zip,application/zip">
+      <div id="upload-button" class="buttons"></div><div id="import-path"></div><div id="import-directory"></div>
+      <div class="buttons"><span id="inspect-import"></span><span id="confirm-import"></span><span id="cancel-import"></span></div>
+      <pre id="import-preview" class="small"></pre><p id="import-status" role="status" aria-live="polite"></p><p id="import-error" role="alert"></p><div id="open-imported" class="buttons"></div>
+      <div id="import-job-id"></div><div id="check-import" class="buttons"></div>`;
+      const get = (id) => root.querySelector(`#${id}`);
+      const fileInput = root.querySelector("#import-file");
+      fileInput.onchange = () => {
+        this.file = fileInput.files?.[0];
+        this.uploadID = "";
+        this.uploaded = false;
+        this.invalidate();
+      };
+      this.pathControl = mountTextField(get("import-path"), { label: "ZIP path on this server", value: "", mono: true, onChange: (value) => {
+        this.path = value;
+        this.uploaded = false;
+        this.invalidate();
+      } });
+      this.directoryControl = mountTextField(get("import-directory"), { label: "Destination working directory on this server", value: "", mono: true, onChange: (value) => {
+        this.directoryEdited = true;
+        this.directory = value;
+        this.invalidate();
+      } });
+      this.upload = mountButton(get("upload-button"), { label: "Upload selected ZIP", onClick: () => void this.uploadFile() });
+      this.inspect = mountButton(get("inspect-import"), { label: "Preview import", onClick: () => void this.inspectArchive() });
+      this.confirm = mountButton(get("confirm-import"), { label: "Import as new session", disabled: true, onClick: () => void this.importArchive() });
+      this.cancel = mountButton(get("cancel-import"), { label: "Cancel", variant: "outline", disabled: true, onClick: () => void this.cancelOperation() });
+      this.open = mountButton(get("open-imported"), { label: "Open imported session", disabled: true, onClick: () => {
+        if (this.sessions[0]) void host.openSession(this.sessions[0]);
+      } });
+      this.jobIDControl = mountTextField(get("import-job-id"), { label: "Import job ID (status only)", value: "", mono: true, onChange: (value) => {
+        this.lastImportID = value.trim();
+        this.refresh();
+      } });
+      this.check = mountButton(get("check-import"), { label: "Check import result", variant: "outline", disabled: true, onClick: () => void this.run(() => this.pollImport(this.lastImportID)) });
+      const setDirectory = (directory) => {
+        if (!this.directoryEdited && !this.busy && this.directory !== (directory ?? "")) {
+          this.directory = directory ?? "";
+          this.directoryControl.update({ value: this.directory });
+          this.invalidate();
+        }
+      };
+      host.onReady((context) => setDirectory(context.directory));
+      host.onDirectory(setDirectory);
+      this.refresh();
+    }
+    host;
+    path = "";
+    directory = "";
+    directoryEdited = false;
+    busy = false;
+    cancelled = false;
+    preview;
+    uploadID = "";
+    uploaded = false;
+    file;
+    operation;
+    pathControl;
+    directoryControl;
+    upload;
+    inspect;
+    confirm;
+    cancel;
+    open;
+    sessions = [];
+    lastImportID = "";
+    jobIDControl;
+    check;
+    text(id, text) {
+      document.getElementById(id).textContent = text;
+    }
+    invalidate() {
+      this.preview = void 0;
+      this.text("import-preview", "");
+      this.refresh();
+    }
+    refresh() {
+      this.pathControl.update({ disabled: this.busy });
+      this.directoryControl.update({ disabled: this.busy });
+      document.getElementById("import-file").disabled = this.busy;
+      this.upload.update({ disabled: this.busy || !this.file });
+      this.inspect.update({ disabled: this.busy || !this.directory || !this.path && !this.uploaded });
+      this.confirm.update({ disabled: this.busy || !this.preview });
+      this.cancel.update({ disabled: !this.busy });
+      this.open.update({ disabled: !this.sessions.length });
+      this.jobIDControl.update({ disabled: this.busy });
+      this.check.update({ disabled: this.busy || !this.lastImportID });
+    }
+    async run(work) {
+      if (this.busy) return;
+      this.busy = true;
+      this.cancelled = false;
+      this.text("import-error", "");
+      this.refresh();
+      try {
+        await work();
+      } catch (error) {
+        this.text("import-error", error instanceof Error ? error.message : "Import operation failed.");
+      } finally {
+        this.operation = void 0;
+        this.busy = false;
+        this.refresh();
+      }
+    }
+    async pollTransfer(id) {
+      this.operation = { kind: "transfer", id };
+      for (; ; ) {
+        const value = await serviceRequest(this.host, "/transfer/job", "GET", void 0, { id });
+        if (value.state === "ready") return value.result;
+        if (["failed", "cancelled"].includes(value.state)) throw new Error(value.error ?? value.progress);
+        this.text("import-status", value.progress);
+        await pause();
+      }
+    }
+    async uploadFile() {
+      const file = this.file;
+      if (!file) return;
+      await this.run(async () => {
+        const current = this.uploadID ? await serviceRequest(this.host, "/uploads/status", "GET", void 0, { id: this.uploadID }) : await serviceRequest(this.host, "/uploads/start", "POST", { name: file.name, size: file.size });
+        this.uploadID = current.id;
+        for (let offset = current.received; offset < file.size; ) {
+          if (this.cancelled) {
+            await serviceRequest(this.host, "/uploads/cancel", "POST", { id: this.uploadID });
+            this.uploadID = "";
+            throw new Error("Upload cancelled; no session was imported.");
+          }
+          const bytes = new Uint8Array(await file.slice(offset, offset + 32768).arrayBuffer());
+          let binary = "";
+          for (const byte of bytes) binary += String.fromCharCode(byte);
+          const digest = crypto.subtle ? await crypto.subtle.digest("SHA-256", bytes) : void 0;
+          const sha256 = digest ? Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("") : void 0;
+          const ack = await serviceRequest(this.host, "/uploads/chunk", "POST", { id: this.uploadID, offset, base64: btoa(binary), sha256 });
+          offset = ack.received;
+          this.text("import-status", `Uploading ${file.name}: ${Math.floor(offset / file.size * 100)}%`);
+        }
+        if (this.cancelled) {
+          await serviceRequest(this.host, "/uploads/cancel", "POST", { id: this.uploadID });
+          this.uploadID = "";
+          throw new Error("Upload cancelled; no session was imported.");
+        }
+        const completed = await serviceRequest(this.host, "/uploads/finish", "POST", { id: this.uploadID });
+        const upload = await this.pollTransfer(completed.id);
+        this.uploaded = true;
+        this.preview = void 0;
+        this.text("import-status", `Uploaded ${file.name} (${formatBytes(upload.size)}). Preview the archive before importing.`);
+      });
+    }
+    async inspectArchive() {
+      await this.run(async () => {
+        this.preview = void 0;
+        const started = await serviceRequest(this.host, "/imports/prepare", "POST", { directory: this.directory, ...this.uploaded ? { uploadID: this.uploadID } : { path: this.path } });
+        const preview = await this.pollTransfer(started.id);
+        if (this.cancelled) throw new Error("Preparation cancelled; no session was imported.");
+        this.preview = preview;
+        this.text("import-preview", [
+          `Profile: ${preview.profile}
+${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${preview.fileCount} file(s)`,
+          `ZIP: ${formatBytes(preview.compressedBytes)} \xB7 Expanded: ${formatBytes(preview.uncompressedBytes)}`,
+          `Working directory: ${preview.directory}`,
+          `Restored files: ${preview.restoredDirectory}`,
+          `Import job ID: ${preview.id}`,
+          "Existing sessions and files will not be overwritten.",
+          ...preview.dependencies ?? [],
+          ...preview.warnings ?? []
+        ].join("\n\n"));
+        this.text("import-status", "Review the preview, then confirm creation of a new session.");
+      });
+    }
+    async importArchive() {
+      const preview = this.preview;
+      if (!preview) return;
+      await this.run(async () => {
+        this.preview = void 0;
+        this.sessions = [];
+        this.lastImportID = preview.id;
+        this.jobIDControl.update({ value: preview.id });
+        this.operation = { kind: "import", id: preview.id };
+        await serviceRequest(this.host, "/imports/start", "POST", { id: preview.id }).catch(() => this.text("import-status", "Submission acknowledgement unavailable. Checking the job without resubmitting\u2026"));
+        await this.pollImport(preview.id);
+      });
+    }
+    async pollImport(id) {
+      this.operation = { kind: "import", id };
+      for (; ; ) {
+        const state = await serviceRequest(this.host, "/imports/status", "GET", void 0, { id });
+        this.sessions = state.sessions ?? [];
+        if (this.sessions.includes(state.mainSessionID)) this.sessions = [state.mainSessionID, ...this.sessions.filter((session) => session !== state.mainSessionID)];
+        this.open.update({ disabled: !this.sessions.length });
+        const details = [
+          state.progress,
+          this.sessions.length ? `${this.sessions.length} new session(s) created` : "",
+          state.restoredFileCount ? `${state.restoredFileCount} file(s) restored in ${state.restoredDirectory}` : "",
+          state.activeFile ? `Possibly partial file: ${state.activeFile}` : "",
+          state.uncertainSessions?.length ? `Uncertain session IDs: ${state.uncertainSessions.join(", ")}` : ""
+        ].filter(Boolean);
+        this.text("import-status", details.join(" \xB7 "));
+        if (state.state === "ready") return;
+        if (["failed", "cancelled", "prepared"].includes(state.state)) throw new Error(`${state.error ?? state.progress} Already-created sessions and files were preserved. Check this job again before another import.`);
+        await pause();
+      }
+    }
+    async cancelOperation() {
+      this.cancelled = true;
+      const operation = this.operation;
+      if (!operation) {
+        this.text("import-status", "Cancelling after the current upload block\u2026");
+        return;
+      }
+      try {
+        await serviceRequest(this.host, operation.kind === "import" ? "/imports/cancel" : "/transfer/cancel", "POST", { id: operation.id });
+      } catch (error) {
+        this.text("import-error", error instanceof Error ? error.message : "Cancellation failed.");
+      }
+    }
+  };
+
   // src/panel.ts
   var ExportPanel = class {
     constructor(host) {
@@ -2087,16 +2617,45 @@ ${GUEST_UI_LOOK_CSS}`;
       document.querySelector("#app").innerHTML = `
       <header><h1>Session Export</h1><p class="muted">Archive the selected conversation.</p></header>
       <section class="target" aria-label="Selected session"><strong id="session-title">No session selected</strong><code id="session-id"></code></section>
-      <p class="note">ZIP includes readable Markdown, projected JSON, sub-sessions and available durable events. Only host-exposed reasoning can be exported.</p>
-      <p class="muted small">The host read bridge limits individual responses and may deny durable logs. Failed transcript reads stop the export; missing logs are reported.</p>
+      <div id="profile-control"></div><div id="history-control"></div>
+      <p id="profile-description" class="note"></p>
+      <p class="muted small">If the bundled plugin is unavailable, Complete export uses the host read bridge with its response/log limits. Failed transcript reads stop the export; missing coverage is reported.</p>
       <div id="include-files"></div><p class="muted small">External files are not inspected unless enabled. Embedded data already stored in the transcript remains in JSON.</p>
       <p id="destination-note" class="muted small"></p><div id="output-directory"></div>
-      <div class="buttons"><span id="export-button"></span></div>
+      <div class="buttons"><span id="export-button"></span><span id="estimate-button"></span><span id="exact-button"></span><span id="cancel-button"></span></div><p id="size-preview" class="small"></p>
       <section id="inventory" hidden><h2>Review local files</h2><p class="muted small">Select files explicitly. Limits: 100 MiB per file, 500 MiB in total. Symbolic links and remote resources are not collected.</p><div id="asset-list"></div><div class="buttons"><span id="more-button"></span><span id="create-button"></span></div></section>
       <p id="status" role="status" aria-live="polite"></p><p id="error" role="alert"></p>
-      <section id="result" hidden><h2>Saved archive</h2><code id="result-path"></code><div class="buttons" id="copy-button"></div></section>
+      <section id="result" hidden><h2>Saved archive</h2><code id="result-path"></code><div class="buttons"><span id="copy-button"></span><span id="files-button"></span><span id="download-button"></span></div><p class="muted small">Use Files to download this ZIP, or move it with another tool. Navigate to the directory shown above if needed.</p></section>
+      <details><summary>Optional private companion endpoint</summary><div id="companion-url"></div><p class="small muted">Only use a private HTTPS URL you control, ending in /companion. Its proxy must already route to this service; this setting does not configure networking. Desktop can use its existing loopback tunnel without this setting.</p></details>
       <p id="warnings" class="small warning"></p>
-      <footer class="muted small">Archives are saved on the OpenChamber server machine, not downloaded to this device. They may contain secrets. An ordinary ZIP is not encrypted.</footer>`;
+      <footer class="muted small">Archives are saved on the selected OpenChamber server. They may contain private information. An ordinary ZIP is not encrypted.</footer>
+      <section id="import-panel"></section>`;
+      this.profileControl = mountSelect(this.element("profile-control"), { label: "Export mode", value: "complete", options: [{ id: "complete", label: "Complete" }, { id: "resume", label: "Resume snapshot" }], onChange: (value) => {
+        this.profile = value;
+        this.clearPreview();
+        this.refresh();
+      } });
+      this.historyControl = mountCheckbox(this.element("history-control"), { label: "Keep earlier conversation for reference only", checked: false, description: "Earlier main-conversation text stays outside active context. Old tool output and sub-agent history are excluded.", onChange: (checked) => {
+        this.retainHistory = checked;
+        this.clearPreview();
+        this.refresh();
+      } });
+      this.estimate = mountButton(this.element("estimate-button"), { label: "Preview size", variant: "outline", onClick: () => void this.previewSize(false) });
+      this.exact = mountButton(this.element("exact-button"), { label: "Measure exact ZIP size", variant: "outline", onClick: () => void this.previewSize(true) });
+      this.cancel = mountButton(this.element("cancel-button"), { label: "Cancel", variant: "outline", disabled: true, onClick: () => void this.cancelJob() });
+      this.files = mountButton(this.element("files-button"), { label: "Open Files", variant: "outline", onClick: () => {
+        void this.host.openSurface("file").catch(() => this.text("error", "Open Files manually and navigate to the archive path."));
+      } });
+      this.download = mountButton(this.element("download-button"), { label: "Download via companion page", variant: "outline", disabled: true, onClick: () => {
+        if (this.downloadGrant && Date.now() < this.downloadGrant.expiresAt) void host.openUrl(this.downloadGrant.url).catch(() => this.text("error", "Open the archive in Files if the companion page cannot be opened."));
+        else void this.prepareDownload().then(() => this.text("status", "The download link was refreshed. Click Download via companion page again.")).catch(() => this.text("error", "The companion is unavailable. Use Files and the archive path instead."));
+      } });
+      this.companionControl = mountTextField(this.element("companion-url"), { label: "Private HTTPS companion URL (optional)", value: "", placeholder: "https://your-private-host/transfer/companion", onChange: (value) => {
+        this.companionUrl = value;
+        this.downloadGrant = void 0;
+        this.refresh();
+      } });
+      new ImportPanel(host, this.element("import-panel"));
       this.inclusion = mountCheckbox(this.element("include-files"), { label: "Include referenced local files", checked: false, onChange: (checked) => {
         this.includeFiles = checked;
         this.clearPreview();
@@ -2112,7 +2671,10 @@ ${GUEST_UI_LOOK_CSS}`;
       } });
       this.more = mountButton(this.element("more-button"), { label: "Load more files", variant: "outline", onClick: () => void this.loadMore() });
       host.onReady((context) => {
-        if (context.device && context.device.formFactor !== "desktop") this.nativeDestination = false;
+        if (context.device && context.device.formFactor !== "desktop") {
+          this.nativeDestination = false;
+          this.nativeCompanion = false;
+        }
         applyHostReady(context, document.documentElement);
         this.context(context.directory ?? "", context.session);
       });
@@ -2144,6 +2706,21 @@ ${GUEST_UI_LOOK_CSS}`;
     output;
     nativeDestination = isLocalDesktop(navigator.userAgent, Array.from(location.ancestorOrigins ?? []));
     destinationJob = "";
+    profile = "complete";
+    retainHistory = false;
+    profileControl;
+    historyControl;
+    estimate;
+    exact;
+    cancel;
+    download;
+    files;
+    activeJob;
+    exportJob = "";
+    downloadGrant;
+    nativeCompanion = /Electron\//.test(navigator.userAgent);
+    companionUrl = "";
+    companionControl;
     element(id) {
       return document.getElementById(id);
     }
@@ -2178,6 +2755,15 @@ ${GUEST_UI_LOOK_CSS}`;
       this.copy.update({ disabled: !this.resultPath });
       this.more.update({ disabled: this.busy || this.next === null });
       this.output.update({ disabled: this.busy, value: this.outputDirectory });
+      this.profileControl.update({ disabled: this.busy });
+      this.text("profile-description", this.profile === "resume" ? "Resume keeps the engine\u2019s effective checkpoint, retained recent context, subsequent exchanges, pins and captured session instructions. Older tool output and sub-agent history are excluded. No new summary is generated." : "Complete keeps readable Markdown, projected JSON, sub-sessions and available durable events. Only host-exposed reasoning can be exported.");
+      this.historyControl.update({ checked: this.retainHistory, disabled: this.busy });
+      this.element("history-control").hidden = this.profile !== "resume";
+      for (const control of [this.estimate, this.exact]) control.update({ disabled: this.busy || !this.session || !this.directory });
+      this.cancel.update({ disabled: !this.busy });
+      this.companionControl.update({ disabled: this.busy });
+      this.download.update({ disabled: !this.exportJob });
+      this.element("download-button").hidden = !this.nativeCompanion && !this.companionUrl;
       this.element("output-directory").hidden = this.nativeDestination;
       this.text("destination-note", this.nativeDestination ? "A Windows Save As dialog will open for each archive. Cancel closes it without writing a ZIP." : "The output path is on the OpenChamber server, not necessarily this device.");
     }
@@ -2189,8 +2775,10 @@ ${GUEST_UI_LOOK_CSS}`;
       this.assetControls = [];
       this.element("asset-list").replaceChildren();
       this.element("inventory").hidden = true;
+      this.text("size-preview", "");
     }
     begin() {
+      this.activeJob = void 0;
       this.busy = true;
       this.resultPath = "";
       this.element("result").hidden = true;
@@ -2221,11 +2809,27 @@ ${GUEST_UI_LOOK_CSS}`;
     }
     async prepare() {
       if (this.busy) return;
+      if (this.preview) {
+        const preview = this.preview, selected = [...this.selected];
+        this.begin();
+        try {
+          await this.exportPrepared(preview.id, preview.target, this.includeFiles, selected);
+          this.clearPreview();
+        } catch (error) {
+          this.text("error", error instanceof Error ? error.message : "Export failed.");
+        } finally {
+          this.activeJob = void 0;
+          this.busy = false;
+          this.refresh();
+        }
+        return;
+      }
       const target = this.target(), epoch = this.epoch, includeFiles = this.includeFiles;
       this.clearPreview();
       this.begin();
       try {
-        const started = await this.request("/prepare", "POST", { target, inspectFiles: includeFiles });
+        const started = await this.request("/prepare", "POST", { target, inspectFiles: includeFiles, profile: this.profile, retainHistory: this.profile === "resume" && this.retainHistory });
+        this.activeJob = { id: started.id, transfer: false };
         const ready = await this.poll(started.id);
         if (includeFiles) {
           if (epoch !== this.epoch) {
@@ -2241,6 +2845,7 @@ ${GUEST_UI_LOOK_CSS}`;
       } catch (error) {
         this.text("error", error instanceof Error ? error.message : "Export preparation failed.");
       } finally {
+        this.activeJob = void 0;
         this.busy = false;
         this.refresh();
       }
@@ -2258,11 +2863,12 @@ ${GUEST_UI_LOOK_CSS}`;
           label: `Include ${asset.name}`,
           checked: false,
           disabled: asset.status !== "available",
-          description: `${asset.path} \xB7 ${(asset.size / 1024).toFixed(1)} KiB${asset.reason ? ` \xB7 ${asset.reason}` : ""}`,
+          description: `${asset.path} \xB7 ${(asset.size / 1024).toFixed(1)} KiB${asset.recommendations?.length ? ` \xB7 Recommended: ${asset.recommendations.join(", ")} context` : ""}${asset.reason ? ` \xB7 ${asset.reason}` : ""}`,
           onChange: (checked) => {
             if (checked) this.selected.add(asset.id);
             else this.selected.delete(asset.id);
             control.update({ checked });
+            this.text("size-preview", "Selection changed. Preview or measure the size again.");
           }
         });
         this.assetControls.push(control);
@@ -2312,12 +2918,74 @@ ${GUEST_UI_LOOK_CSS}`;
         }
       }
       const started = await this.request("/export", "POST", { preparedID, destinationID, options: { includeFiles, selectedAssetIDs, outputDirectory: outputDirectory || void 0 } });
+      this.activeJob = { id: started.id, transfer: false };
       const result = await this.poll(started.id);
+      this.exportJob = started.id;
+      this.downloadGrant = void 0;
       this.resultPath = result.path ?? "";
       this.text("result-path", this.resultPath);
       this.element("result").hidden = false;
       this.text("status", `Archive saved for ${target.title ?? target.sessionID}${target.sessionID !== this.session?.id ? " (previously selected session)" : ""}.`);
       this.text("warnings", [...result.warnings ?? [], ...result.additionalWarningCount ? [`${result.additionalWarningCount} additional warning(s) are recorded in the archive manifest.`] : []].join("\n"));
+      if (this.nativeCompanion || this.companionUrl) await this.prepareDownload().catch(() => this.text("status", "Archive saved. Use Files if the companion download is unavailable."));
+    }
+    async prepareDownload() {
+      if (!this.exportJob) return;
+      const result = await this.request("/downloads/start", "POST", { jobID: this.exportJob, privateUrl: this.companionUrl || void 0 });
+      this.downloadGrant = { url: result.url, expiresAt: result.expiresAt };
+      this.refresh();
+    }
+    async previewSize(exact) {
+      if (this.busy) return;
+      const epoch = this.epoch;
+      this.begin();
+      try {
+        if (!this.preview) {
+          const started2 = await this.request("/prepare", "POST", { target: this.target(), inspectFiles: this.includeFiles, profile: this.profile, retainHistory: this.profile === "resume" && this.retainHistory });
+          this.activeJob = { id: started2.id, transfer: false };
+          const ready = await this.poll(started2.id);
+          if (epoch !== this.epoch) return;
+          this.preview = ready.prepared;
+          if (this.includeFiles) {
+            this.next = 0;
+            await this.loadMore();
+            this.element("inventory").hidden = false;
+          }
+        }
+        const started = await this.request("/size", "POST", { preparedID: this.preview.id, options: { includeFiles: this.includeFiles, selectedAssetIDs: [...this.selected] }, exact });
+        this.activeJob = { id: started.id, transfer: true };
+        for (; ; ) {
+          const job = await this.request("/transfer/job", "GET", void 0, { id: started.id });
+          if (["failed", "cancelled"].includes(job.state)) throw new Error(job.error ?? job.progress);
+          if (job.state === "ready") {
+            if (epoch !== this.epoch) {
+              this.text("status", "The size preview belongs to the previously selected session. Preview again for the current session.");
+              return;
+            }
+            const value = job.result;
+            const parts = Object.entries(value.breakdown).map(([name, size]) => `${name}: ${formatBytes(size)}`).join(" \xB7 ");
+            this.text("size-preview", `${value.sessionCount} session(s), ${value.messageCount} message(s). Known source data: ${formatBytes(value.knownSourceBytes)} \xB7 Estimated ZIP: ${formatBytes(value.estimatedZipBytes)}${value.exactZipBytes !== void 0 ? ` \xB7 Exact ZIP: ${formatBytes(value.exactZipBytes)}` : ""}. Exact size requires compression. ${parts}.`);
+            this.text("status", "Size preview ready. No session was imported and no final export was published.");
+            break;
+          }
+          this.text("status", job.progress);
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+      } catch (error) {
+        this.text("error", error instanceof Error ? error.message : "Size preview failed.");
+      } finally {
+        this.activeJob = void 0;
+        this.busy = false;
+        this.refresh();
+      }
+    }
+    async cancelJob() {
+      try {
+        if (this.destinationJob) await this.request("/destination/cancel", "POST", { id: this.destinationJob });
+        else if (this.activeJob) await this.request(this.activeJob.transfer ? "/transfer/cancel" : "/cancel", "POST", { id: this.activeJob.id });
+      } catch (error) {
+        this.text("error", error instanceof Error ? error.message : "Cancellation failed.");
+      }
     }
   };
   new ExportPanel(connectHost());
