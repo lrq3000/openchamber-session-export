@@ -25,9 +25,9 @@ export async function privateDirectory(directory: string): Promise<void> {
   if (process.platform !== 'win32') {
     if (metadata.uid !== process.getuid?.() || (metadata.mode & 0o077) !== 0) throw new Error('The private transfer directory must belong to this user and have mode 0700.');
   } else {
-    // mode:0700 does not set Windows DACLs. Replace inheritance with a grant to
-    // the current SID; the path is passed as data, never interpolated into code.
-    const script = "$ErrorActionPreference='Stop';$p=$env:SESSION_EXPORT_PRIVATE_DIR;$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=New-Object Security.AccessControl.DirectorySecurity;$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);$r=New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow');$a.AddAccessRule($r);Set-Acl -LiteralPath $p -AclObject $a";
+    // mode:0700 does not set Windows DACLs. Replace inheritance with a grant to the current SID; the path is passed as data, never interpolated into code.
+    // Persist only the modified Owner/Access sections: PowerShell 5.1's Set-Acl provider can request Audit privileges again once a directory's DACL is protected.
+    const script = "$ErrorActionPreference='Stop';$p=$env:SESSION_EXPORT_PRIVATE_DIR;$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=New-Object Security.AccessControl.DirectorySecurity;$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);$r=New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow');$a.AddAccessRule($r);[System.IO.Directory]::SetAccessControl($p,$a)";
     await exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
       windowsHide: true, timeout: 10000, env: { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, SESSION_EXPORT_PRIVATE_DIR: directory },
     });
