@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, type Page } from 'playwright';
 import { parseGuestMessage } from '@openchamber/sdk/schemas';
 import { createService } from '../../src/service.js';
 import { capture, diskCapture, temporary } from '../fixtures.js';
@@ -13,7 +13,41 @@ const tokens = {
   background: '#ffffff', foreground: '#1f2937', elevated: '#ffffff', elevatedForeground: '#1f2937', muted: '#64748b', mutedSurface: '#f1f5f9', subtle: '#f8fafc', border: '#dbe2ea', hover: '#e2e8f0', active: '#dbeafe', primary: '#2563eb', primaryForeground: '#ffffff', primaryText: '#1f2937', successText: '#15754a', warningText: '#925f13', errorText: '#b91c1c', infoText: '#245fae', font: 'system-ui', mono: 'monospace', radius: '6px',
 };
 
-test('the real SDK panel exports, reviews files and preserves the clicked target across focus changes', { timeout: 45000 }, async () => {
+/** Exercise the controlled SDK selector itself: a changed description alone cannot prove that its value was synchronized. */
+async function assertExportMode(page: Page, screenshot: string): Promise<void> {
+  const frame = page.frameLocator('iframe');
+  const mode = frame.getByRole('button', { name: 'Export mode', exact: true });
+  const history = frame.getByRole('checkbox', { name: /^Keep earlier conversation for reference only/ });
+  assert.equal(await mode.innerText(), 'Complete');
+  assert.equal(await history.isVisible(), false);
+  await mode.click();
+  assert.equal(await frame.getByRole('option', { name: 'Complete', exact: true }).getAttribute('aria-selected'), 'true');
+  await frame.getByRole('option', { name: 'Resume snapshot', exact: true }).click();
+  await history.waitFor({ state: 'visible' });
+  await page.screenshot({ path: screenshot, fullPage: true });
+  assert.equal(await mode.innerText(), 'Resume snapshot', `The selector label must reflect the profile already used by the panel; evidence: ${screenshot}`);
+  await mode.click();
+  assert.equal(await frame.getByRole('option', { name: 'Resume snapshot', exact: true }).getAttribute('aria-selected'), 'true');
+  assert.equal(await frame.getByRole('option', { name: 'Complete', exact: true }).getAttribute('aria-selected'), 'false');
+  await frame.getByRole('listbox').press('Escape');
+  await history.check();
+  const files = frame.getByRole('checkbox', { name: 'Include referenced local files', exact: true });
+  await files.check(); await files.uncheck();
+  assert.equal(await mode.innerText(), 'Resume snapshot', 'Unrelated control refreshes must preserve the profile');
+  await mode.click(); await frame.getByRole('option', { name: 'Complete', exact: true }).click();
+  assert.equal(await mode.innerText(), 'Complete');
+  assert.equal(await history.isVisible(), false);
+  await mode.click();
+  assert.equal(await frame.getByRole('option', { name: 'Complete', exact: true }).getAttribute('aria-selected'), 'true');
+  await frame.getByRole('option', { name: 'Resume snapshot', exact: true }).click();
+  assert.equal(await mode.innerText(), 'Resume snapshot');
+  assert.equal(await history.isChecked(), true, 'Switching modes must not change the existing history preference');
+  await history.uncheck();
+  await mode.click(); await frame.getByRole('option', { name: 'Complete', exact: true }).click();
+  assert.equal(await history.isVisible(), false);
+}
+
+test('the real SDK export panel', { timeout: 45000 }, async t => {
   const root = await temporary('ui');
   const image = join(root, 'generated-image.png'); await writeFile(image, 'fixture image bytes');
   let blocked = false, release!: () => void, observed!: () => void, coverageWarning = '';
@@ -60,7 +94,8 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
       const url = new URL(payload.path, serviceURL); for (const [key, value] of Object.entries(payload.query ?? {})) url.searchParams.set(key, value);
       const response = await fetch(url, { method: payload.method, headers: { Authorization: 'Bearer ui-fixture-secret' }, body: payload.body });
       res.writeHead(response.status, { 'Content-Type': 'application/json' }); res.end(await response.text());
-    } else { res.writeHead(404); res.end(); }
+    } else if (req.url === '/favicon.ico') { res.writeHead(204); res.end(); }
+    else { res.writeHead(404); res.end(); }
   });
   await new Promise<void>(resolve => host.listen(0, '127.0.0.1', resolve));
   // Reuse an explicitly selected installed Chromium without downloading a browser or changing the normal Chrome default.
@@ -70,6 +105,28 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
     throw error;
   });
   try {
+    await t.test('export mode stays synchronized across browser, touch and Electron-user-agent contexts', async () => {
+      const contexts = [
+        { name: 'browser', options: { viewport: { width: 480, height: 920 } } },
+        { name: 'phone', options: { viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36' } },
+        { name: 'electron-ua', options: { viewport: { width: 480, height: 920 }, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenChamber/2.7.1 Chrome/130.0 Electron/40.0.0' } },
+      ];
+      for (const context of contexts) {
+        const page = await browser.newPage(context.options), errors: string[] = [];
+        page.setDefaultTimeout(5000); page.on('pageerror', error => errors.push(error.message));
+        page.on('console', message => { if (['error', 'warning'].includes(message.type())) errors.push(message.text()); });
+        try {
+          const url = `http://127.0.0.1:${(host.address() as any).port}/`;
+          await page.goto(url);
+          assert.equal(page.url(), url); assert.equal(await page.title(), 'Session Export SDK QA');
+          await page.frameLocator('iframe').getByRole('heading', { name: 'Session Export', exact: true }).waitFor();
+          await assertExportMode(page, join(root, `panel-resume-${context.name}.png`));
+          assert.deepEqual(errors, []);
+        } finally { await page.close(); }
+      }
+      console.log(`Selector UI browser: ${browser.version()}; evidence: ${root}`);
+    });
+    await t.test('archive export flow reviews files and preserves the clicked target across focus changes', async () => {
     const page = await browser.newPage({ viewport: { width: 480, height: 920 } });
     page.setDefaultTimeout(3000); const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${(host.address() as any).port}/`);
@@ -93,11 +150,14 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
     blocked = true; gate = new Promise(resolve => release = resolve); observation = new Promise(resolve => observed = resolve);
     await frame.getByRole('button', { name: 'Review files', exact: true }).click();
     await observation;
+    assert.equal(await frame.getByRole('button', { name: 'Export mode', exact: true }).isDisabled(), true);
     await page.evaluate(() => (window as any).changeSession());
     await frame.getByText('Another session', { exact: true }).waitFor();
     assert.equal(await frame.getByRole('checkbox', { name: 'Include referenced local files', exact: true }).isChecked(), false);
     release(); blocked = false;
     await frame.getByRole('button', { name: 'Export session', exact: true }).waitFor({ state: 'visible' });
+    await frame.locator('#profile-control button:enabled').waitFor();
+    assert.equal(await frame.getByRole('button', { name: 'Export mode', exact: true }).isDisabled(), false);
     await frame.getByRole('button', { name: 'Export session', exact: true }).click();
     await frame.getByRole('status').filter({ hasText: 'Archive saved' }).waitFor();
     assert.equal(targets.at(-2), 'ses_root'); assert.equal(targets.at(-1), 'ses_other');
@@ -197,6 +257,7 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
     assert.equal(existsSync(join(root, 'must-not-be-created.zip')), false);
     await desktop.close();
     console.log(`UI browser: ${browser.version()}; panel screenshots: ${root}`);
+    });
   } finally {
     release?.(); chooserRelease?.(); await browser.close();
     await new Promise<void>(resolve => host.close(() => resolve()));

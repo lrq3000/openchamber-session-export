@@ -122,7 +122,8 @@ class ExportPanel {
     this.create.update({ disabled: this.busy || !this.preview }); this.copy.update({ disabled: !this.resultPath });
     this.more.update({ disabled: this.busy || this.next === null });
     this.output.update({ disabled: this.busy, value: this.outputDirectory });
-    this.profileControl.update({ disabled: this.busy });
+    // SDK selects are controlled: onChange reports a choice but does not retain its value.
+    this.profileControl.update({ value: this.profile, disabled: this.busy });
     this.text('profile-description', this.profile === 'resume'
       ? 'Resume keeps the engine’s effective checkpoint, retained recent context, subsequent exchanges, pins and captured session instructions. Older tool output and sub-agent history are excluded. No new summary is generated.'
       : 'Complete keeps readable Markdown, projected JSON, sub-sessions and available durable events. Only host-exposed reasoning can be exported.');
