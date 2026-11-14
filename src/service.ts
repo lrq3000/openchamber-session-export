@@ -3,19 +3,29 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { Exporter } from './exporter.js';
 import { WindowsSaveDialog, validateOutputFile, type DestinationPicker } from './save-dialog.js';
 import type { CaptureSnapshot, ExportTarget, JobStatus, RecordData } from './types.js';
+import type { CaptureOptions } from './types.js';
+import { TransferService } from './transfer-service.js';
+import { PluginClient } from './plugin-client.js';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { RELEASE_VERSION } from './constants.js';
 
-/** Text-only, bounded SDK bridge. ZIP bytes and conversation bodies never pass through the iframe. */
-export function createService(token: string, source: { capture(target: ExportTarget): Promise<CaptureSnapshot>; connection?(): Promise<RecordData> }, options: { picker?: DestinationPicker } = {}): Server {
+/** The SDK carries bounded metadata/upload blocks; downloads use separately scoped capabilities. */
+export function createService(token: string, source: { capture(target: ExportTarget, options?: CaptureOptions): Promise<CaptureSnapshot>; connection?(): Promise<RecordData> }, options: { picker?: DestinationPicker; plugin?: () => Promise<PluginClient>; dataDirectory?: string } = {}): Server {
   const expected = createHash('sha256').update(`Bearer ${token}`).digest();
   const exporter = new Exporter(source), jobs = new Map<string, JobStatus>();
+  const controllers = new Map<string, AbortController>();
+  const transfers = new TransferService(exporter, options.plugin ?? (async () => { throw new Error('Approve the bundled OpenCode plugin in Settings → Extensions to import sessions.'); }), options.dataDirectory ?? join(tmpdir(), 'opencode', `session-transfer-${randomUUID()}`));
   const picker = options.picker ?? new WindowsSaveDialog();
   const destinations = new Map<string, { job: JobStatus; preparedID: string; controller: AbortController; path?: string; used: boolean }>();
   const server = createServer(async (request, response) => {
+    const url = new URL(request.url ?? '/', 'http://127.0.0.1');
+    if (await transfers.companion.handle(request, response, url.pathname)) return;
     const header = request.headers.authorization;
     if (typeof header !== 'string' || !timingSafeEqual(createHash('sha256').update(header).digest(), expected)) return respond(response, 401, { error: 'Authentication required.' });
     try {
-      const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-      if (url.pathname === '/health' && request.method === 'GET') return respond(response, 200, { ok: true, version: '0.3.0' });
+      if (await transfers.handle(request, response, url)) return;
+      if (url.pathname === '/health' && request.method === 'GET') return respond(response, 200, { ok: true, version: RELEASE_VERSION });
       if (url.pathname === '/connection' && request.method === 'GET' && source.connection) return respond(response, 200, await source.connection());
       if (url.pathname === '/prepare' && request.method === 'POST') {
         const input = await body(request), value = input.target;
@@ -24,13 +34,20 @@ export function createService(token: string, source: { capture(target: ExportTar
         if (!value || typeof value.sessionID !== 'string' || !/^ses_[a-zA-Z0-9_-]{1,200}$/.test(value.sessionID) || typeof value.directory !== 'string' || !value.directory || value.directory.length > 4096 || value.directory.includes('\0')) throw new Error('Choose a valid session and directory.');
         const target: ExportTarget = { sessionID: value.sessionID, directory: value.directory, title: typeof value.title === 'string' ? value.title.slice(0, 500) : undefined };
         if (input.inspectFiles !== undefined && typeof input.inspectFiles !== 'boolean') throw new Error('Invalid file-inventory option.');
-        const job: JobStatus = { id: randomUUID(), target, state: 'running', progress: 'Reading session evidence' };
+        if (input.profile !== undefined && !['complete', 'resume'].includes(input.profile) || input.retainHistory !== undefined && typeof input.retainHistory !== 'boolean') throw new Error('Invalid export profile.');
+        const job: JobStatus = { id: randomUUID(), target, state: 'running', progress: 'Reading session evidence' }, controller = new AbortController();
         if (jobs.size >= 32) jobs.delete(jobs.keys().next().value!);
         jobs.set(job.id, job);
-        void exporter.prepare(target, input.inspectFiles === true).then(preview => {
+        controllers.set(job.id, controller);
+        void exporter.prepare(target, input.inspectFiles === true, { profile: input.profile, retainHistory: input.retainHistory, signal: controller.signal }).then(preview => {
           Object.assign(job, { state: 'ready', progress: 'Evidence prepared', prepared: preview });
-        }).catch(error => { Object.assign(job, { state: 'failed', progress: 'Preparation failed', error: safeError(error) }); });
+        }).catch(error => { Object.assign(job, { state: 'failed', progress: controller.signal.aborted ? 'Preparation cancelled' : 'Preparation failed', error: safeError(error) }); }).finally(() => controllers.delete(job.id));
         return respond(response, 202, job);
+      }
+      if (url.pathname === '/cancel' && request.method === 'POST') {
+        const input = await body(request);
+        if (controllers.has(input.id)) controllers.get(input.id)!.abort(); else exporter.cancel(input.id);
+        return respond(response, 200, { cancelled: true });
       }
       if (url.pathname === '/job' && request.method === 'GET') {
         const id = url.searchParams.get('id') ?? '';
@@ -87,7 +104,7 @@ export function createService(token: string, source: { capture(target: ExportTar
       respond(response, 404, { error: 'Unknown extension route.' });
     } catch (error) { respond(response, 400, { error: safeError(error) }); }
   });
-  server.once('close', () => { for (const record of destinations.values()) record.controller.abort(); });
+  server.once('close', () => { transfers.close(); exporter.close(); for (const controller of controllers.values()) controller.abort(); for (const record of destinations.values()) record.controller.abort(); });
   return server;
 }
 

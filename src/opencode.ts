@@ -7,16 +7,18 @@ import { finished, pipeline } from 'node:stream/promises';
 import { samePath } from './attachments.js';
 import { CaptureStore } from './capture-store.js';
 import { JsonDocument, type JsonPath } from './json-stream.js';
-import type { CaptureSnapshot, ExportTarget, SessionRecord } from './types.js';
+import type { CaptureOptions, CaptureSnapshot, ExportTarget, SessionRecord } from './types.js';
 
 /** Backend-only credentials. Native host access does not expose the upstream version. */
 export interface Connection { url: string; version: string | null; token?: string }
 
 /** GET-only projected capture. No cumulative evidence limit: page values, session records and logs are staged on disk. */
 export class SessionSource {
-  constructor(private connection: Connection) {}
+  constructor(private connection: Connection, private signal?: AbortSignal) {}
 
-  async capture(target: ExportTarget): Promise<CaptureSnapshot> {
+  async capture(target: ExportTarget, options: CaptureOptions = {}): Promise<CaptureSnapshot> {
+    // Each capture owns its cancellation signal, even when a caller reuses a source.
+    if (options.signal !== this.signal) return new SessionSource(this.connection, options.signal).capture(target, options);
     if (!/^ses_[a-zA-Z0-9_-]{1,200}$/.test(target.sessionID) || !target.directory) throw new Error('A valid session and directory are required.');
     const store = await CaptureStore.create();
     const snapshot: CaptureSnapshot = { root: store.root, target: { ...target }, startedAt: new Date().toISOString(), endedAt: '', serverVersion: this.connection.version, sessionCount: 0, messageCount: 0, warnings: [], warningCount: 0 };
@@ -29,6 +31,7 @@ export class SessionSource {
     catch { await warn('Session activity could not be checked; the capture may be non-atomic.'); }
     await store.append('queue', { id: target.sessionID });
     for await (const queued of store.records<{ id: string }>('queue')) {
+      this.signal?.throwIfAborted();
       const id = queued.id;
       if (!await store.claim('sessions', id)) throw new Error('A cycle or duplicate descendant was found. Retry after the session tree settles.');
       const key = createHash('sha256').update(id).digest('hex').slice(0, 24), path = `/api/session/${encodeURIComponent(id)}`;
@@ -51,7 +54,7 @@ export class SessionSource {
         yield ']';
       }
       await this.write(messages(), messagesPath);
-      for (const archived of ['false', 'true']) {
+      for (const archived of options.profile === 'resume' ? [] : ['false', 'true']) {
         for await (const child of this.pages('/api/session', { parentID: id, archived, order: 'asc', limit: '100' }, store, `child-${key}-${archived}`)) {
           const childID = await child.scalar(['id']);
           if (typeof childID !== 'string' || !/^ses_[a-zA-Z0-9_-]{1,200}$/.test(childID)) throw new Error('Invalid descendant session identity.');
@@ -70,7 +73,21 @@ export class SessionSource {
     }
     // Optional log failures cannot discard the already-complete primary transcript.
     for await (const record of store.records<SessionRecord>('core-sessions')) {
-      try {
+      this.signal?.throwIfAborted();
+      for (const [suffix, field] of [['context', 'contextPath'], ['instructions', 'instructionsPath']] as const) {
+        try {
+          const endpoint = suffix === 'context' ? `/api/session/${record.id}/context` : `/api/experimental/session/${record.id}/instructions/entries`;
+          const document = await this.document(endpoint, {}, store), path = join(store.root, `${suffix}-${record.id}.json`);
+          await this.write(document.json(await this.bodyPath(document)), path); record[field] = path;
+        } catch {
+          this.signal?.throwIfAborted();
+          if (options.profile === 'resume') throw new Error('Resume snapshots require the approved bundled OpenCode plugin to read effective context and instructions.');
+          await warn(`${suffix === 'context' ? 'Effective context' : 'Session instructions'} unavailable for ${record.id}; portable context coverage is incomplete.`);
+        }
+      }
+      if (options.profile === 'resume') {
+        record.log = { available: false, error: 'Historical logs are intentionally excluded from resume snapshots.' };
+      } else try {
         const log = await this.log(record.id, store);
         record.eventsPath = log.path; record.log = { available: true, watermark: log.watermark };
       } catch (error) {
@@ -83,7 +100,7 @@ export class SessionSource {
     return snapshot;
   }
 
-  private async bodyPath(document: JsonDocument): Promise<JsonPath> { return await document.kind(['data']) === 'object' ? ['data'] : []; }
+  private async bodyPath(document: JsonDocument): Promise<JsonPath> { return ['object', 'array'].includes((await document.kind(['data'])) ?? '') ? ['data'] : []; }
 
   private async *pages(path: string, query: Record<string, string>, store: CaptureStore, namespace: string): AsyncGenerator<JsonDocument> {
     let cursor: string | undefined;
@@ -111,7 +128,7 @@ export class SessionSource {
     for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, { redirect: 'error', signal: controller.signal, cache: 'no-store', ...(this.connection.token ? { headers: { Authorization: `Bearer ${this.connection.token}` } } : {}) });
+      const response = await fetch(url, { redirect: 'error', signal: this.signal ? AbortSignal.any([controller.signal, this.signal]) : controller.signal, cache: 'no-store', ...(this.connection.token ? { headers: { Authorization: `Bearer ${this.connection.token}` } } : {}) });
       if (!response.ok) { await response.body?.cancel(); throw new Error(`OpenCode GET ${path} returned ${response.status}.`); }
       return response;
     } finally { clearTimeout(timer); }

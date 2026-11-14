@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
-const requiredCapabilities = ['service', 'opencode'];
+const requiredCapabilities = ['service', 'opencode', 'opencodePlugin', 'sessions'];
 const hasRequiredCapabilities = value => Array.isArray(value) && value.length === requiredCapabilities.length && requiredCapabilities.every(capability => value.includes(capability));
 
 async function createBackupDirectory(root, prefix, expectedDevice) {
@@ -26,10 +26,11 @@ async function main() {
   if (!isAbsolute(suppliedDestination) || /^[\\/]{2}/.test(suppliedDestination) || suppliedDestination.includes('\0')) throw new Error('Choose an absolute local installation destination.');
   const destination = resolve(suppliedDestination);
   const updating = args.includes('--update');
+  if (!updating && !args.includes('--approve-bundled-plugin')) throw new Error('This release includes a full-access OpenCode plugin. Use native Settings → Extensions, or explicitly add --approve-bundled-plugin after reviewing that approval.');
   try { await lstat(destination); if (!updating) throw new Error('The destination already exists; compare it before planning an update.'); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
   const source = fileURLToPath(new URL('../openchamber/', import.meta.url));
-  const files = ['package.json', 'panel/index.html', 'panel/app.js', 'service.cjs'];
+  const files = ['package.json', 'panel/index.html', 'panel/app.js', 'service.cjs', 'plugin/package.json', 'plugin/index.js'];
   for (const file of files) if (!(await lstat(join(source, file))).isFile()) throw new Error('Build the complete extension before installing it.');
   const request = async (path, method = 'GET', body) => {
     const response = await fetch(new URL(path, host), { method, redirect: 'error', headers: { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30000) });
@@ -70,8 +71,8 @@ async function main() {
 async function update({ destination, source, files, before, registry, temporary, request, expectedVersion, expectedHashesPath }) {
   const same = (a, b) => process.platform === 'win32' ? resolve(a).toLowerCase() === resolve(b).toLowerCase() : resolve(a) === resolve(b);
   const guest = before.guests.find(value => value.id === 'session-export');
-  if (!guest || !same(guest.path, destination) || guest.enabled !== true || !hasRequiredCapabilities(guest.capabilities?.requested) || !hasRequiredCapabilities(guest.capabilities?.granted)) throw new Error('Update requires the explicitly selected, enabled installation with service and OpenCode access already approved through native controls. Existing grants are never widened by an update.');
-  if (!expectedVersion || !expectedHashesPath) throw new Error('Updates require --expected-version and --expected-hashes pointing to a reviewed SHA-256 map of all four managed files.');
+  if (!guest || !same(guest.path, destination) || guest.enabled !== true || !hasRequiredCapabilities(guest.capabilities?.requested) || !hasRequiredCapabilities(guest.capabilities?.granted)) throw new Error('Update requires service, OpenCode access, the bundled plugin and session navigation already approved through native controls. Existing grants are never widened; use native Settings for a permission transition.');
+  if (!expectedVersion || !expectedHashesPath) throw new Error('Updates require --expected-version and --expected-hashes pointing to a reviewed SHA-256 map of all six managed files.');
   const metadata = await lstat(destination);
   if (!metadata.isDirectory() || metadata.isSymbolicLink() || !same(await realpath(destination), destination)) throw new Error('The update destination must be a regular local directory without symbolic-link ancestors.');
   const expected = JSON.parse(await readFile(expectedHashesPath, 'utf8'));

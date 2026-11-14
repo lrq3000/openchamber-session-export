@@ -8,6 +8,7 @@ import yazl from 'yazl';
 import { MAX_TOTAL_FILE_BYTES, samePath } from './attachments.js';
 import { CaptureStore } from './capture-store.js';
 import { MarkdownRenderer } from './markdown.js';
+import { RELEASE_VERSION } from './constants.js';
 import type { AssetCandidate, CaptureSnapshot, ExportOptions, RecordData, SessionRecord } from './types.js';
 
 interface Entry { path: string; size: number; sha256: string; source: string }
@@ -15,6 +16,7 @@ interface Entry { path: string; size: number; sha256: string; source: string }
 /** Each entry is staged/hashed progressively; the archive manifest and evidence are never whole-chat JavaScript strings. */
 export class ArchiveWriter {
   async write(capture: CaptureSnapshot, assets: AsyncIterable<AssetCandidate>, options: ExportOptions, directory: string): Promise<{ path: string; size: number; warnings: string[]; warningCount: number }> {
+    options.signal?.throwIfAborted();
     await mkdir(directory, { recursive: true });
     const staging = await mkdtemp(join(directory, '.session-export-')), archive = new CaptureStore(staging), evidence = new CaptureStore(capture.root);
     const warnings = [...capture.warnings]; let warningCount = capture.warningCount;
@@ -22,16 +24,18 @@ export class ArchiveWriter {
     const selected = new Set(options.includeFiles ? options.selectedAssetIDs ?? [] : []);
     let selectedBytes = 0;
     for await (const asset of assets) {
+      options.signal?.throwIfAborted();
       const decision: RecordData = { id: asset.id, path: asset.path, size: asset.size, selected: selected.has(asset.id), availability: asset.status, reason: asset.reason, sessionIndex: asset.sessionIndex, sessions: asset.sessions, status: selected.has(asset.id) ? 'pending' : asset.status === 'available' ? 'not-selected' : 'unavailable' };
       if (asset.status !== 'available' && !selected.has(asset.id)) await warn(`Unavailable ${asset.name}: ${asset.reason ?? asset.status}`);
       if (selected.has(asset.id)) {
         try {
           if (asset.status !== 'available' || !asset.fingerprint) throw new Error(asset.reason ?? 'The referenced file is unavailable.');
           if (selectedBytes + asset.size > MAX_TOTAL_FILE_BYTES) throw new Error('Selected files exceed the 500 MiB aggregate limit.');
-          const entry = await this.asset(asset, staging);
+          const entry = await this.asset(asset, staging, options.signal);
           await archive.append('entries', entry); selectedBytes += entry.size;
           decision.status = 'included'; decision.archivePath = entry.path;
         } catch (error) {
+          options.signal?.throwIfAborted();
           // A selected external file is optional. Do not disguise archive-staging disk errors as an unavailable source file.
           if (['ENOSPC', 'EDQUOT'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
           decision.status = 'omitted'; decision.reason = error instanceof Error ? error.message : 'File collection failed.';
@@ -40,39 +44,43 @@ export class ArchiveWriter {
       }
       await archive.append('decisions', decision);
     }
-    await this.entry('conversation.md', this.markdown(capture, archive), archive);
+    await this.entry('conversation.md', this.markdown(capture, archive), archive, options.signal);
     for await (const session of evidence.sessions(capture)) {
+      options.signal?.throwIfAborted();
       const name = session.id === capture.target.sessionID ? 'session.json' : `subsessions/${session.id}.json`;
       async function* projected() { yield '{"info":'; yield* createReadStream(session.infoPath); yield ',"messages":'; yield* createReadStream(session.messagesPath); yield '}\n'; }
-      await this.entry(name, projected(), archive);
-      if (session.log.available && session.eventsPath) await this.entry(`events/${session.id}.jsonl`, createReadStream(session.eventsPath), archive);
+      await this.entry(name, projected(), archive, options.signal);
+      if (session.log.available && session.eventsPath) await this.entry(`events/${session.id}.jsonl`, createReadStream(session.eventsPath), archive, options.signal);
+      if (session.instructionsPath) await this.entry(`context/${session.id}/instructions.json`, createReadStream(session.instructionsPath), archive, options.signal);
+      if (session.contextPath && capture.profile !== 'resume') await this.entry(`context/${session.id}/effective.json`, createReadStream(session.contextPath), archive, options.signal);
     }
+    for (const extra of capture.extras ?? []) await this.entry(extra.name, createReadStream(extra.path), archive, options.signal);
     // The manifest is deliberately not in its own checksum list.
-    await this.entry('manifest.json', this.manifest(capture, archive, Boolean(options.includeFiles)), archive);
+    await this.entry('manifest.json', this.manifest(capture, archive, Boolean(options.includeFiles)), archive, options.signal);
     const zip = new yazl.ZipFile(), partial = join(staging, 'archive.zip.partial');
     const output = zip.outputStream as Readable;
     zip.on('error', error => output.destroy(error));
     let failure: unknown;
-    const completed = pipeline(output, createWriteStream(partial, { flags: 'wx', mode: 0o600 })).catch(error => { failure = error; });
+    const completed = pipeline(output, createWriteStream(partial, { flags: 'wx', mode: 0o600 }), { signal: options.signal }).catch(error => { failure = error; });
     try {
-      for await (const entry of archive.records<Entry>('entries', { required: true })) zip.addFile(entry.source, entry.path, { mode: 0o100600 });
+      for await (const entry of archive.records<Entry>('entries', { required: true })) { options.signal?.throwIfAborted(); zip.addFile(entry.source, entry.path, { mode: 0o100600 }); }
       zip.end(); await completed; if (failure) throw failure;
     } catch (error) { output.destroy(); await completed; throw error; }
     const slug = String(capture.target.title ?? 'session').normalize('NFKC').replace(/[^\p{L}\p{N}_-]/gu, '-').slice(0, 60) || 'session';
     const destination = options.outputFile ?? join(directory, `${slug}-${capture.target.sessionID}-${randomUUID()}.zip`);
     // Exclusive publication cannot overwrite another archive. Failed/private staging is retained for manual cleanup.
-    await link(partial, destination);
+    options.signal?.throwIfAborted(); await link(partial, destination);
     return { path: destination, size: (await stat(destination)).size, warnings, warningCount };
   }
 
-  private async entry(name: string, content: AsyncIterable<string | Uint8Array>, archive: CaptureStore): Promise<void> {
+  private async entry(name: string, content: AsyncIterable<string | Uint8Array>, archive: CaptureStore, signal?: AbortSignal): Promise<void> {
     const source = join(archive.root, `entry-${randomUUID()}`), digest = createHash('sha256'); let size = 0;
     const hash = new Transform({ transform(chunk: Buffer, _encoding, callback) { size += chunk.length; digest.update(chunk); callback(null, chunk); } });
-    await pipeline(Readable.from(content, { objectMode: false }), hash, createWriteStream(source, { flags: 'wx', mode: 0o600 }));
+    await pipeline(Readable.from(content, { objectMode: false }), hash, createWriteStream(source, { flags: 'wx', mode: 0o600 }), { signal });
     await archive.append('entries', { path: name, size, sha256: digest.digest('hex'), source });
   }
 
-  private async asset(asset: AssetCandidate, staging: string): Promise<Entry> {
+  private async asset(asset: AssetCandidate, staging: string, signal?: AbortSignal): Promise<Entry> {
     const metadata = await lstat(asset.path);
     if (metadata.isSymbolicLink() || !metadata.isFile() || !samePath(await realpath(asset.path), asset.path)) throw new Error('The referenced file changed or is a symbolic link.');
     const file = await open(asset.path, 'r');
@@ -86,7 +94,7 @@ export class ArchiveWriter {
         if (copied > asset.size) return callback(new Error('The file grew during collection.'));
         digest.update(chunk); callback(null, chunk);
       } });
-      await pipeline(file.createReadStream({ autoClose: false }), hash, createWriteStream(source, { flags: 'wx', mode: 0o600 }));
+      await pipeline(file.createReadStream({ autoClose: false }), hash, createWriteStream(source, { flags: 'wx', mode: 0o600 }), { signal });
       if (!matches(await file.stat()) || copied !== asset.size) throw new Error('The file changed during collection.');
       const name = asset.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-100) || 'attachment';
       return { path: `assets/${asset.id}-${name}`, size: copied, sha256: digest.digest('hex'), source };
@@ -106,7 +114,8 @@ export class ArchiveWriter {
   private async *manifest(capture: CaptureSnapshot, archive: CaptureStore, includeFiles: boolean): AsyncGenerator<string> {
     const evidence = new CaptureStore(capture.root);
     let stable = true; for await (const session of evidence.sessions(capture)) if (session.active !== false || session.changed) stable = false;
-    yield JSON.stringify({ schema: 'openchamber-session-export/1', version: '0.3.0', target: capture.target, startedAt: capture.startedAt, endedAt: capture.endedAt, serverVersion: capture.serverVersion, source: 'OpenCode v2 projected message pages and optional durable log; not the native settled-only transfer export' }).slice(0, -1);
+    yield JSON.stringify({ schema: 'openchamber-session-export/2', version: RELEASE_VERSION, profile: capture.profile ?? 'complete', retainHistory: Boolean(capture.retainHistory), target: capture.target, startedAt: capture.startedAt, endedAt: capture.endedAt, serverVersion: capture.serverVersion, source: 'OpenCode v2 projected message pages and optional durable log; not the native settled-only transfer export' }).slice(0, -1);
+    yield `,"dependencies":${JSON.stringify(['The destination must supply its own repository/worktree, tools, model/provider, skills, MCP services and credentials.', 'Only captured session instructions and pins are portable; external notes/plans and global configuration are not automatically copied.', 'Restored files live in a new directory. Historical paths in prose and tool arguments are not execution-time path mappings.'])}`;
     yield `,"coverage":{"hiddenReasoning":"not available","providerWireTraffic":"not captured","atomic":false,"observedStable":${stable},"logs":[`;
     let comma = false;
     for await (const session of evidence.sessions(capture)) { if (comma) yield ','; comma = true; yield JSON.stringify({ sessionID: session.id, ...session.log }); }

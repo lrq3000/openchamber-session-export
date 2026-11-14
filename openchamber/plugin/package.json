@@ -1,0 +1,8 @@
+{
+  "name": "openchamber-session-export-backend",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.js"
+  }
+}
