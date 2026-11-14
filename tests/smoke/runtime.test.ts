@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { createServer as createPortReservation } from 'node:net';
-import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -25,8 +24,7 @@ test('captures real OpenCode v2 projected reasoning and tools without a provider
   const configPath = join(project, 'opencode.json'); await writeFile(configPath, JSON.stringify(config));
   const reservation = createPortReservation(); await new Promise<void>(resolve => reservation.listen(0, '127.0.0.1', resolve));
   const port = (reservation.address() as any).port; await new Promise<void>(resolve => reservation.close(() => resolve()));
-  const bundled = 'C:/Users/33632/AppData/Local/Programs/@openchamberelectron/resources/opencode-cli/opencode.exe';
-  const binary = process.env.SESSION_EXPORT_OPENCODE ?? (existsSync(bundled) ? bundled : 'opencode');
+  const binary = process.env.SESSION_EXPORT_OPENCODE ?? 'opencode';
   const child = spawn(binary, ['serve', '--hostname', '127.0.0.1', '--port', String(port)], {
     cwd: project, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
     env: { ...process.env, XDG_CONFIG_HOME: join(root, 'config'), XDG_DATA_HOME: join(root, 'data'), XDG_CACHE_HOME: join(root, 'cache'), XDG_STATE_HOME: join(root, 'state'), OPENCODE_CONFIG: configPath, OPENCODE_CONFIG_CONTENT: JSON.stringify(config), OPENCODE_DISABLE_AUTOUPDATE: '1', OPENCHAMBER_AGENT_TOOL_URL: '', OPENCHAMBER_AGENT_TOOL_TOKEN: '', SESSION_EXPORT_FIXTURE_KEY: 'isolated-fixture-only' },

@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
+import { runInNewContext } from 'node:vm';
 import { temporary } from './fixtures.js';
 
 test('installs a stable folder with exactly native service and OpenCode approval and preserves existing registrations', async () => {
@@ -34,7 +35,7 @@ test('installs a stable folder with exactly native service and OpenCode approval
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const installer = resolve('scripts/install.mjs');
   const run = (destinationArgument = destination) => new Promise<{ code: number | null; output: string; error: string }>(resolveRun => {
-    const child = spawn(process.execPath, [installer, '--yes', '--host', `http://127.0.0.1:${(server.address() as any).port}`, '--destination', destinationArgument, '--registry', registry, '--temp-root', root], { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [installer, '--yes', '--host', `http://127.0.0.1:${(server.address() as any).port}`, '--destination', destinationArgument, '--registry', registry], { cwd: root, env: { ...process.env, TMPDIR: root, TMP: root, TEMP: root, SESSION_EXPORT_TEST_TMP: undefined }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '', error = ''; child.stdout.on('data', chunk => output += chunk); child.stderr.on('data', chunk => error += chunk);
     child.on('close', code => resolveRun({ code, output, error }));
   });
@@ -45,6 +46,7 @@ test('installs a stable folder with exactly native service and OpenCode approval
     assert.equal((await readFile(join(destination, 'package.json'))).equals(await readFile('openchamber/package.json')), true);
     assert.equal(await readFile(registry, 'utf8'), original);
     const metadata = JSON.parse(result.output); assert.equal(await readFile(metadata.backup, 'utf8'), original);
+    assert.equal(dirname(dirname(metadata.backup)), join(root, 'opencode'));
     assert.equal(metadata.connectionVersion, '2.2.5'); assert.equal(other.id, 'other');
     const repeated = await run(); assert.notEqual(repeated.code, 0); assert.equal(changes.length, 2);
     assert.equal(await readFile(registry, 'utf8'), original);
@@ -108,4 +110,37 @@ test('updates only an exactly fingerprinted existing extension after backup and 
     assert.equal(await readFile(metadata.backup, 'utf8'), '{"other":"preserved"}\n');
     assert.equal((await run()).code === 0, false); assert.equal(changes.length, 2);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test('rejects cross-filesystem update staging before pausing or replacing an installed extension', async () => {
+  // A second filesystem is not always available on Windows/CI. Execute the actual updater with only filesystem/API boundaries substituted.
+  const script = await readFile('scripts/install.mjs', 'utf8');
+  const helpers = script.slice(script.indexOf('const requiredCapabilities'), script.indexOf('/** New installs'));
+  const updater = script.slice(script.indexOf('async function update('), script.lastIndexOf('\nmain().catch'));
+  const destination = resolve('fixture-install'), temporary = resolve('fixture-other-filesystem'), hashesPath = resolve('fixture-hashes.json');
+  const files = ['package.json', 'panel/index.html', 'panel/app.js', 'service.cjs'];
+  const contents = new Map(files.map(file => [join(destination, file), file === 'package.json' ? JSON.stringify({ name: 'openchamber-session-export', version: '0.0.1', openchamber: { contributes: { panel: { id: 'session-export' } } } }) : `existing ${file}`]));
+  const hashes = Object.fromEntries(files.map(file => [file, createHash('sha256').update(contents.get(join(destination, file))!).digest('hex')]));
+  const mutations: unknown[] = [];
+  const update = runInNewContext(`${helpers}\n${updater}\nupdate`, {
+    process: { platform: process.platform }, resolve, join, dirname, createHash,
+    constants: { COPYFILE_EXCL: 1 },
+    lstat: async (path: string) => ({ dev: 1, isDirectory: () => path === destination, isFile: () => contents.has(path), isSymbolicLink: () => false }),
+    stat: async () => ({ dev: 2 }),
+    realpath: async (path: string) => path,
+    readFile: async (path: string) => {
+      if (path === hashesPath) return JSON.stringify(hashes);
+      if (!contents.has(path)) throw new Error('Unexpected filesystem read');
+      return contents.get(path);
+    },
+    mkdir: async () => {}, mkdtemp: async (path: string) => path + 'retained', copyFile: async () => {},
+    rename: async () => { mutations.push('rename'); throw Object.assign(new Error('EXDEV'), { code: 'EXDEV' }); },
+  }) as (input: Record<string, unknown>) => Promise<unknown>;
+  const outcome = await update({
+    destination, temporary, source: resolve('fixture-source'), files, registry: resolve('fixture-registry.json'), expectedVersion: '0.0.1', expectedHashesPath: hashesPath,
+    before: { guests: [{ id: 'session-export', path: destination, enabled: true, capabilities: { requested: ['service', 'opencode'], granted: ['service', 'opencode'] } }] },
+    request: async (path: string, method: string, body: unknown) => { mutations.push({ path, method, body }); return {}; },
+  }).catch(error => error);
+  assert.deepEqual(mutations, [], 'Cross-filesystem staging must fail before touching native controls or installed files');
+  assert.match(String((outcome as Error).message), /--temp-root/);
 });

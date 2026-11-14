@@ -30,6 +30,7 @@ class ExportPanel {
       <header><h1>Session Export</h1><p class="muted">Archive the selected conversation.</p></header>
       <section class="target" aria-label="Selected session"><strong id="session-title">No session selected</strong><code id="session-id"></code></section>
       <p class="note">ZIP includes readable Markdown, projected JSON, sub-sessions and available durable events. Only host-exposed reasoning can be exported.</p>
+      <p class="muted small">The host read bridge limits individual responses and may deny durable logs. Failed transcript reads stop the export; missing logs are reported.</p>
       <div id="include-files"></div><p class="muted small">External files are not inspected unless enabled. Embedded data already stored in the transcript remains in JSON.</p>
       <p id="destination-note" class="muted small"></p><div id="output-directory"></div>
       <div class="buttons"><span id="export-button"></span></div>
@@ -37,7 +38,7 @@ class ExportPanel {
       <p id="status" role="status" aria-live="polite"></p><p id="error" role="alert"></p>
       <section id="result" hidden><h2>Saved archive</h2><code id="result-path"></code><div class="buttons" id="copy-button"></div></section>
       <p id="warnings" class="small warning"></p>
-      <footer class="muted small">Archives are saved on the OpenChamber server machine. They may contain secrets. An ordinary ZIP is not encrypted.</footer>`;
+      <footer class="muted small">Archives are saved on the OpenChamber server machine, not downloaded to this device. They may contain secrets. An ordinary ZIP is not encrypted.</footer>`;
     this.inclusion = mountCheckbox(this.element('include-files'), { label: 'Include referenced local files', checked: false, onChange: checked => {
       this.includeFiles = checked; this.clearPreview(); this.refresh();
     } });
@@ -48,7 +49,11 @@ class ExportPanel {
       if (this.resultPath) void this.host.writeClipboard(this.resultPath).catch(() => this.text('error', 'The archive is saved, but its path could not be copied.'));
     } });
     this.more = mountButton(this.element('more-button'), { label: 'Load more files', variant: 'outline', onClick: () => void this.loadMore() });
-    host.onReady(context => { applyHostReady(context, document.documentElement); this.context(context.directory ?? '', context.session); });
+    host.onReady(context => {
+      // A host-reported phone/tablet overrides a desktop-looking UA: never open a server-side chooser from a mobile view.
+      if (context.device && context.device.formFactor !== 'desktop') this.nativeDestination = false;
+      applyHostReady(context, document.documentElement); this.context(context.directory ?? '', context.session);
+    });
     host.onDirectory(directory => { if ((directory ?? '') !== this.directory) this.context(directory ?? '', null); });
     host.onSession(session => this.context(this.directory, session));
     host.onItem(item => {
@@ -81,7 +86,7 @@ class ExportPanel {
     this.inclusion.update({ checked: this.includeFiles, disabled: this.busy || !this.session });
     this.create.update({ disabled: this.busy || !this.preview }); this.copy.update({ disabled: !this.resultPath });
     this.more.update({ disabled: this.busy || this.next === null });
-    this.output.update({ disabled: this.busy });
+    this.output.update({ disabled: this.busy, value: this.outputDirectory });
     this.element('output-directory').hidden = this.nativeDestination;
     this.text('destination-note', this.nativeDestination ? 'A Windows Save As dialog will open for each archive. Cancel closes it without writing a ZIP.' : 'The output path is on the OpenChamber server, not necessarily this device.');
   }

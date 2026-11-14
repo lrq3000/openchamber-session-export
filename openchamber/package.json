@@ -6,7 +6,7 @@
     "apiVersion": 1,
     "engines": { "openchamber": ">=2.7.1" },
     "contributes": {
-      "panel": { "id": "session-export", "name": "Session Export", "icon": "download-line", "entry": "panel/index.html" },
+      "panel": { "id": "session-export", "name": "Session Export", "icon": "download-line", "entry": "panel/index.html", "mobile": true },
       "actions": [{ "id": "export-session", "label": "Export complete session", "icon": "download-line", "where": "session" }],
       "service": { "entry": "service.cjs", "runtime": "host", "provides": ["opencode"], "permissions": { "exec": ["powershell.exe"] } }
     }

@@ -1,12 +1,19 @@
 import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rename } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rename, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const requiredCapabilities = ['service', 'opencode'];
 const hasRequiredCapabilities = value => Array.isArray(value) && value.length === requiredCapabilities.length && requiredCapabilities.every(capability => value.includes(capability));
+
+async function createBackupDirectory(root, prefix, expectedDevice) {
+  await mkdir(root, { recursive: true });
+  // Detect incompatible staging before copying replacements or pausing a healthy extension (for example /tmp on tmpfs).
+  if (expectedDevice !== undefined && (await stat(root)).dev !== expectedDevice) throw new Error('Update staging must use the installation filesystem. Set --temp-root to a directory on that filesystem; no extension was paused or replaced.');
+  return mkdtemp(join(root, prefix));
+}
 
 /** New installs register through native controls. Updates require exact fingerprints and preserve unrelated files and grants. */
 async function main() {
@@ -38,9 +45,9 @@ async function main() {
   if (!Array.isArray(before.guests)) throw new Error('The extension catalog is invalid.');
   if (!updating && before.guests.some(guest => guest.id === 'session-export')) throw new Error('The extension ID is already registered.');
   const registry = get('--registry') ?? join(homedir(), '.config', 'openchamber', 'extensions.json');
-  const temporary = get('--temp-root') ?? process.env.SESSION_EXPORT_TEST_TMP ?? 'C:/Users/33632/AppData/Local/Temp/opencode';
+  const temporary = get('--temp-root') ?? process.env.SESSION_EXPORT_TEST_TMP ?? join(tmpdir(), 'opencode');
   if (updating) return update({ destination, source, files, before, registry, temporary, request, expectedVersion: get('--expected-version'), expectedHashesPath: get('--expected-hashes') });
-  const backupDirectory = await mkdtemp(join(temporary, 'session-export-install-'));
+  const backupDirectory = await createBackupDirectory(temporary, 'session-export-install-');
   const backup = join(backupDirectory, 'extensions.before.json');
   await copyFile(registry, backup, constants.COPYFILE_EXCL);
   await mkdir(dirname(destination), { recursive: true }); await mkdir(destination);
@@ -77,7 +84,7 @@ async function update({ destination, source, files, before, registry, temporary,
     }
   };
   await verify();
-  const backupDirectory = await mkdtemp(join(temporary, 'session-export-update-')), backup = join(backupDirectory, 'extensions.before.json');
+  const backupDirectory = await createBackupDirectory(temporary, 'session-export-update-', metadata.dev), backup = join(backupDirectory, 'extensions.before.json');
   await copyFile(registry, backup, constants.COPYFILE_EXCL);
   for (const file of files) {
     await mkdir(dirname(join(backupDirectory, 'extension', file)), { recursive: true });

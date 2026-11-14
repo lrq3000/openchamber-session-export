@@ -30,3 +30,12 @@ test('the published SDK accepts the native read role and requests exactly its tw
   assert.deepEqual(requestedGuestCapabilities(parsed.manifest.contributes).sort(), ['opencode', 'service']);
   assert.equal(JSON.parse(readFileSync('package.json', 'utf8')).dependencies['@openchamber/sdk'], '2.7.1');
 });
+
+test('the installed manifest exposes its existing panel and session action on mobile without changing desktop routing', () => {
+  const parsed = parseManifest(JSON.parse(readFileSync('openchamber/package.json', 'utf8')));
+  assert.ok(parsed.ok, JSON.stringify(parsed));
+  assert.equal(parsed.manifest.contributes.panel.mobile, true);
+  assert.equal(parsed.manifest.contributes.panel.entry, 'panel/index.html');
+  assert.equal(parsed.manifest.contributes.attach, undefined);
+  assert.equal(parsed.manifest.contributes.actions?.[0].id, 'export-session');
+});

@@ -50,14 +50,14 @@
 
 **Interfaces:** Retain existing SDK event handling and job routes. Add mobile opt-in without changing action IDs or desktop attach behavior. Portable temp roots honor `SESSION_EXPORT_TEST_TMP`, otherwise `join(tmpdir(), 'opencode')`, creating the base before mkdtemp. Smoke binary selection honors `SESSION_EXPORT_OPENCODE`, otherwise platform-neutral PATH `opencode`.
 
-- [ ] Write parser assertions for panel.mobile and a phone-sized interaction case covering output path, no-file export, attachment review/selection/create, copy result, long text and no horizontal overflow. Assert mobile never calls `/destination`.
-- [ ] Add assertions for portable temp defaults and explicit overrides; preserve existing Windows-only native-picker safety tests.
-- [ ] Run the focused unit/mobile checks and confirm the new behavioral assertions fail before implementation.
-- [ ] Enable mobile, make minimal responsive/touch adjustments, replace personal default paths and create a Node 24 CI matrix on windows-latest, ubuntu-latest and macos-latest running install, typecheck, build and unit tests.
-- [ ] Write the separate OpenChamber prompt: authenticated streamed downloads across direct/native/relay clients, complete allowlisted evidence reads without per-response truncation, durable logs and real upstream version, approval/revocation, bounded memory, no credential exposure, and cross-platform/mobile validation. It must be independently executable later and must not authorize work in that repository now.
-- [ ] Run `npm run typecheck`, `npm run build`, `npm test`, `npm run test:ui` with an already installed Chromium. Use `SESSION_EXPORT_TEST_TMP=C:/Users/33632/AppData/Local/Temp/opencode` for retained local artifacts. Do not download a browser.
-- [ ] Obtain an independent fresh-context read-only code/permission review; verify its findings and fix only valid issues within this approved scope. Re-run affected checks.
-- [ ] Record exact results, limitations and evidence locations in the validation document; tick this plan; inspect the diff and commit the mobile/tooling/handoff milestone. Verify a clean worktree and all completed milestones committed before final delivery.
+- [x] Write parser assertions for panel.mobile and a phone-sized interaction case covering output path, no-file export, attachment review/selection/create, copy result, long text and no horizontal overflow. Assert mobile never calls `/destination`.
+- [x] Add assertions for portable temp defaults and explicit overrides; preserve existing Windows-only native-picker safety tests.
+- [x] Run the focused unit/mobile checks and confirm the new behavioral assertions fail before implementation.
+- [x] Enable mobile, make minimal responsive/touch adjustments, replace personal default paths and create a Node 24 CI matrix on windows-latest, ubuntu-latest and macos-latest running install, typecheck, build and unit tests.
+- [x] Write the separate OpenChamber prompt: authenticated streamed downloads across direct/native/relay clients, complete allowlisted evidence reads without per-response truncation, durable logs and real upstream version, approval/revocation, bounded memory, no credential exposure, and cross-platform/mobile validation. It must be independently executable later and must not authorize work in that repository now.
+- [x] Run `npm run typecheck`, `npm run build`, `npm test`, `npm run test:ui` with an already installed Chromium. Use `SESSION_EXPORT_TEST_TMP=C:/Users/33632/AppData/Local/Temp/opencode` for retained local artifacts. Do not download a browser.
+- [x] Obtain an independent fresh-context read-only code/permission review; verify its findings and fix only valid issues within this approved scope. Re-run affected checks.
+- [x] Record exact results, limitations and evidence locations in the validation document; tick this plan; inspect the diff and commit the mobile/tooling/handoff milestone. Verify a clean worktree and all completed milestones committed before final delivery.
 
 ## Baseline and plan review
 
@@ -72,3 +72,21 @@ Pre-flight: Task 1 owns the manifest, release and installer permissions; Task 2 
 Ruling: Use this approved plan as the progress ledger instead of generating Bash-specific scratch/brief files on Windows — the complete two-task plan remains directly available and no extra workspace lifecycle is needed — cost if wrong: less automatic extraction of task briefs, not a product behavior change.
 
 Task 1: complete. Published SDK 2.7.1's actual parser accepts the native role. Resolver, authenticated capture, permission-transition and release tests were observed failing before their implementation and passed afterward; existing core-read/redirect safeguards also remained covered. `npm run typecheck`, `npm run build`, `npm test` (47/47) and `git diff --check` pass. The existing service health assertion in `tests/service.test.ts` was synchronized with release 0.3.0 after the full suite identified its historical literal. No archive algorithm changed.
+
+Task 1 commit: `35fe97f`.
+
+Task 2: in progress. Mobile/parser and portable-temp assertions were observed RED before implementation. Phone interaction also reproduced the SDK field's visible-value reset; `refresh()` now supplies the persisted output directory and its regression assertion passes. A simulated OS temporary-directory alias reproduced noncanonical fixture paths; canonicalizing the created fixture base preserves the existing attachment symlink-safety policy. No native chooser was added for non-Windows hosts.
+
+Ruling: Use the already-installed Playwright Chromium instead of Edge 130 for UI validation — unchanged tests passed on Chromium after instrumentation showed Edge delivered touchstart/touchend but suppressed the synthesized Create archive click — cost if wrong: Edge 130 touch emulation remains unverified, so do not claim support from its failed run. No browser was downloaded.
+
+Final review: one fresh-context read-only review (`ses_e28747a6fffeaBk53lhgVtaifl`), covering the base commit through current working changes and new artifacts. No Critical findings; cross-filesystem staging was Important; long-warning overflow was regraded from Minor to Important because it breaks the phone layout. Both enter the single approved fix pass.
+
+Final: fixed cross-filesystem staging — `rejects cross-filesystem update staging before pausing or replacing an installed extension` reproduced a pause/rename before preflight, then passed with zero native mutations and an actionable temporary-root error; unit suite 50/50.
+
+Final: fixed warning overflow — full phone result with a 200-character unbroken identifier reproduced overflow, then passed while preserving all warning text; UI suite 1/1 and unit suite 50/50.
+
+Final: Ruling: host response limits, excluded durable logs, unknown upstream version and device ZIP downloads remain deferred to the separate OpenChamber prompt, as explicitly approved — cost: very large native reads may fail and phone downloads are not supplied by this release.
+
+Final: Ruling: native host/Linux/macOS/physical-phone/relay, revocation-in-flight and backend-switch integration remain unverified rather than inferred from synthetic tests — they require separately scoped environments or later host work — cost: integration-specific failures can remain; run native and CI checks before claiming that coverage. The review's declined Edge 130 behavior is already covered by the Chromium-selection ruling above.
+
+Task 2: complete. `npm run typecheck`, `npm run build`, `npm test` (50/50), `npm run test:ui` (1/1 on installed Chromium 153.0.8010.12) and `git diff --check` pass after the single review-fix pass. The standalone host prompt and validation record exist and all six README local links resolve. No review findings remain deferred. Synthetic evidence is retained under the approved OS temporary root; the root main checkout was verified clean. Keep this branch/worktree as-is; no push, PR, merge, live installation or cleanup is authorized.

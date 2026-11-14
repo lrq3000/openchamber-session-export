@@ -16,7 +16,7 @@ const tokens = {
 test('the real SDK panel exports, reviews files and preserves the clicked target across focus changes', { timeout: 45000 }, async () => {
   const root = await temporary('ui');
   const image = join(root, 'generated-image.png'); await writeFile(image, 'fixture image bytes');
-  let blocked = false, release!: () => void, observed!: () => void;
+  let blocked = false, release!: () => void, observed!: () => void, coverageWarning = '';
   let gate = Promise.resolve(); let observation = Promise.resolve();
   const targets: string[] = [];
   let chooserCalls = 0, chooserResult: any = { state: 'cancelled' };
@@ -24,6 +24,7 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
   const service = createService('ui-fixture-secret', { capture: async target => {
     targets.push(target.sessionID); observed?.(); if (blocked) await gate;
     const data = capture(); data.target = target; data.sessions[0].info.id = target.sessionID;
+    if (coverageWarning) data.warnings.push(coverageWarning);
     data.sessions[0].messages[0].files = [{ name: 'generated-image.png', source: { type: 'file', path: image } }];
     return diskCapture(data);
   } }, { picker: { choose: async (_name, signal) => {
@@ -37,12 +38,12 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
   const host = createServer(async (req, res) => {
     if (req.url === '/') {
       res.setHeader('Content-Type', 'text/html');
-      res.end(`<html><head><title>Session Export SDK QA</title></head><body style="margin:0"><iframe title="Session Export" sandbox="allow-scripts" src="/panel" style="border:0;width:100%;height:900px"></iframe><script>
+      res.end(`<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Session Export SDK QA</title></head><body style="margin:0"><iframe title="Session Export" sandbox="allow-scripts" src="/panel" style="border:0;width:100%;height:900px"></iframe><script>
       window.copied='';window.calls=[];
-      window.changeSession=()=>{const f=document.querySelector('iframe');f.contentWindow.postMessage({channel:'openchamber.sdk',v:1,type:'session',payload:{session:{id:'ses_other',title:'Another session',busy:false}}},'*')};
+      window.changeSession=(title='Another session')=>{const f=document.querySelector('iframe');f.contentWindow.postMessage({channel:'openchamber.sdk',v:1,type:'session',payload:{session:{id:'ses_other',title,busy:false}}},'*')};
       addEventListener('message',async e=>{const m=e.data;if(!m.channel)return;
       const answer=(type,payload)=>e.source.postMessage({channel:m.channel,v:m.v,type,id:m.id,ok:true,payload},'*');
-      if(m.type==='hello'){answer('ready',{directory:'/project',session:{id:'ses_root',title:'Export fixture',busy:false},surface:'panel',locale:'en',connection:{connected:false,account:''},settings:{},item:null,theme:{mode:'light',tokens:${JSON.stringify(tokens)}}});return;}
+      if(m.type==='hello'){const coarse=matchMedia('(pointer:coarse)').matches;answer('ready',{directory:'/project',session:{id:'ses_root',title:'Export fixture',busy:false},surface:'panel',locale:'en',device:{formFactor:coarse?'phone':'desktop',pointer:coarse?'coarse':'fine',insets:{top:0,right:0,bottom:0,left:0},keyboard:0},connection:{connected:false,account:''},settings:{},item:null,theme:{mode:'light',tokens:${JSON.stringify(tokens)}}});return;}
       window.calls.push(m.type);
       if(m.type==='service-request'){const r=await fetch('/bridge',{method:'POST',body:JSON.stringify(m)});answer('result',{status:r.status,body:await r.text()});}
       else {if(m.type==='clipboard-write')window.copied=m.payload.text;answer('result',{});}});
@@ -109,6 +110,49 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
     await frame.locator('body').evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     assert.equal(await frame.locator('body').evaluate(body => body.scrollWidth <= window.innerWidth), true);
     await page.screenshot({ path: join(root, 'panel-narrow.png'), fullPage: true });
+    // Exercise actual touch layout and the full existing options flow, not only a narrow desktop screenshot.
+    const phone = await browser.newPage({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/130.0 Mobile Safari/537.36' });
+    const phoneErrors: string[] = [];
+    phone.setDefaultTimeout(5000); phone.on('pageerror', error => phoneErrors.push(error.message));
+    await phone.goto(`http://127.0.0.1:${(host.address() as any).port}/`);
+    const mobile = phone.frameLocator('iframe'), chooserBeforePhone = chooserCalls;
+    await mobile.getByLabel('Output directory', { exact: true }).fill(root);
+    assert.ok((await mobile.getByRole('button', { name: 'Export session', exact: true }).boundingBox())!.height >= 44, 'Touch action needs a 44px hit target');
+    await mobile.getByRole('button', { name: 'Export session', exact: true }).tap();
+    await mobile.getByRole('status').filter({ hasText: 'Archive saved' }).waitFor();
+    assert.equal(await mobile.getByLabel('Output directory', { exact: true }).inputValue(), root, 'Keep the visible destination synchronized when controls refresh');
+    coverageWarning = 'Durable log unavailable for ses_' + 'A'.repeat(200);
+    await mobile.getByRole('checkbox', { name: 'Include referenced local files', exact: true }).tap();
+    await mobile.getByRole('button', { name: 'Review files', exact: true }).tap();
+    const includeImage = mobile.getByRole('checkbox', { name: /^Include generated-image\.png/ });
+    await includeImage.waitFor(); assert.equal(await includeImage.isChecked(), false);
+    await includeImage.tap();
+    await phone.screenshot({ path: join(root, 'panel-phone-review.png') });
+    await mobile.getByRole('button', { name: 'Create archive', exact: true }).tap();
+    await mobile.getByRole('status').filter({ hasText: 'Archive saved' }).waitFor().catch(async error => {
+      await phone.screenshot({ path: join(root, 'panel-phone-failure.png'), fullPage: true });
+      throw new Error(`${error.message}; mobile state: ${await mobile.locator('body').ariaSnapshot()}; recent routes: ${seen.slice(-12).join(', ')}; evidence: ${root}`);
+    });
+    assert.equal(await mobile.locator('#warnings').innerText(), coverageWarning);
+    assert.equal(await mobile.locator('body').evaluate(body => window.innerWidth === 360 && body.scrollWidth <= window.innerWidth), true, 'Long coverage warnings must not widen the phone panel');
+    await mobile.getByRole('button', { name: 'Copy path', exact: true }).tap();
+    assert.ok((await phone.evaluate(() => (window as any).copied)).endsWith('.zip'));
+    coverageWarning = '';
+    await phone.evaluate(() => (window as any).changeSession('LongTitleWithoutBreaks'.repeat(25)));
+    await mobile.locator('#session-title').filter({ hasText: 'LongTitleWithoutBreaks' }).waitFor();
+    assert.equal(await mobile.locator('body').evaluate(body => window.innerWidth === 360 && body.scrollWidth <= window.innerWidth), true, 'A long session title must not widen the phone panel');
+    assert.equal(chooserCalls, chooserBeforePhone, 'Mobile must not open a chooser on its host');
+    assert.equal(await mobile.getByRole('checkbox', { name: 'Include referenced local files', exact: true }).isChecked(), false);
+    await mobile.locator('body').evaluate(() => { scrollTo(0, 0); return new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))); });
+    await phone.evaluate(() => scrollTo(0, 0));
+    await phone.screenshot({ path: join(root, 'panel-phone-long-title.png') });
+    await phone.close();
+    const phoneWithDesktopUA = await browser.newPage({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenChamber/2.7.1 Chrome/130.0 Electron/40.0.0' });
+    await phoneWithDesktopUA.goto(`http://127.0.0.1:${(host.address() as any).port}/`);
+    await phoneWithDesktopUA.frameLocator('iframe').getByLabel('Output directory', { exact: true }).waitFor({ state: 'visible', timeout: 5000 });
+    await phoneWithDesktopUA.close();
+    assert.deepEqual(phoneErrors, []);
+    assert.deepEqual(errors, []);
     // Exercise the local-desktop routing heuristic with a controlled Electron UA, not a claim that Chrome is Electron.
     const desktop = await browser.newPage({ viewport: { width: 480, height: 920 }, userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenChamber/2.6.1 Chrome/130.0 Electron/40.0.0' });
     desktop.setDefaultTimeout(5000);
@@ -152,7 +196,7 @@ test('the real SDK panel exports, reviews files and preserves the clicked target
     assert.equal(seen.filter(path => path === '/export').length, beforeFocus);
     assert.equal(existsSync(join(root, 'must-not-be-created.zip')), false);
     await desktop.close();
-    console.log(`Panel screenshots: ${root}`);
+    console.log(`UI browser: ${browser.version()}; panel screenshots: ${root}`);
   } finally {
     release?.(); chooserRelease?.(); await browser.close();
     await new Promise<void>(resolve => host.close(() => resolve()));
