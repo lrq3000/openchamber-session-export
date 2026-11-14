@@ -2,7 +2,7 @@
 
 Export a complete conversation or a lightweight **Resume snapshot** to ZIP, move it between OpenChamber instances, and import it as new sessions. The extension never generates a summary, sends a prompt, resumes a process or executes a conversation tool.
 
-The canonical source is [lrq3000/openchamber-session-export](https://github.com/lrq3000/openchamber-session-export). See [HISTORY.md](HISTORY.md) for extraction provenance and historical paths. Source version `0.4.0` adds import and transfer support; changing the source version does not publish or deploy a release. The development package remains private to npm.
+The canonical source is [lrq3000/openchamber-session-export](https://github.com/lrq3000/openchamber-session-export). See [HISTORY.md](HISTORY.md) for extraction provenance and historical paths. Current source version `0.4.1` fixes export-mode selection and repeated Windows private-directory hardening; `0.4.0` introduced import and transfer support. Changing the source version does not publish or deploy a release. The development package remains private to npm.
 
 ## Compatibility and installation units
 
@@ -32,7 +32,7 @@ OpenChamber does not install npm dependencies or compile TypeScript for an exten
 
 The actual Windows chooser smoke is separately opt-in: set `SESSION_EXPORT_NATIVE_DIALOG=1` using your shell's syntax, then run `npm run test:smoke`. It displays and automatically handles only its own titled test dialog, holds it beyond twenty seconds, chooses a synthetic Unicode ZIP path, verifies exact publication and cancels another chooser without writing. It requires an interactive Windows desktop. Normal unit/UI tests inject a chooser at the OS boundary; they do not display dialogs.
 
-The installed-interface smoke case is opt-in: set `SESSION_EXPORT_NATIVE_URL` only for an explicitly authorized local OpenChamber session URL. It inspects the installed panel/session-menu action without clicking Export or sending a prompt. Historical installed-interface evidence concerned earlier versions; it is not evidence of a live 0.4.0 installation. The current implementation was tested with isolated synthetic sessions, not private everyday conversations.
+The installed-interface smoke case is opt-in: set `SESSION_EXPORT_NATIVE_URL` only for an explicitly authorized local OpenChamber session URL. It inspects the installed panel/session-menu action without clicking Export or sending a prompt. Historical installed-interface evidence concerned earlier versions; it is not evidence of a live 0.4.1 installation. The current implementation was tested with isolated synthetic sessions, not private everyday conversations.
 
 For folder installation, copy the complete `openchamber/` directory to a stable location before registering it. A folder install references its source; never select a disposable worktree that will later be removed. Approve the declared capabilities only after reviewing the package.
 
@@ -126,7 +126,7 @@ The extension's session-menu action does not request `payload: ["messages"]`: th
 
 ## Release records
 
-Release `0.2.0` added disk-backed export and Windows Save As; `0.2.1` recorded source extraction; `0.3.0` added mobile opt-in and the native host read connection. Source version `0.4.0` adds Complete/Resume profiles, size preview, a bundled plugin, new-session ZIP import, upload and optional companion download. Creation `2026-11-07` is preserved; last updated `2026-11-14`. Package manifests, lockfile and runtime labels share the version.
+Release `0.2.0` added disk-backed export and Windows Save As; `0.2.1` recorded source extraction; `0.3.0` added mobile opt-in and the native host read connection. Source version `0.4.0` adds Complete/Resume profiles, size preview, a bundled plugin, new-session ZIP import, upload and optional companion download. Patch version `0.4.1` synchronizes the selected export mode, makes Windows private-directory ACL hardening repeatable without audit privileges, and corrects the synthetic touch fixture's viewport sizing. Creation `2026-11-07` is preserved; last updated `2026-11-14`. Package manifests, lockfile and runtime labels share the version.
 
 Copyright 2026 Stephen Karl Larroque <LRQ3000@gmail.com>. See [AUTHOR.txt](AUTHOR.txt) and the [Apache-2.0 license](LICENSE.txt); dependencies retain their own licenses.
 

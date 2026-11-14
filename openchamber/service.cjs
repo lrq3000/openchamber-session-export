@@ -5900,7 +5900,7 @@ ID: ${label(session.id)}
 };
 
 // src/constants.ts
-var RELEASE_VERSION = "0.4.0";
+var RELEASE_VERSION = "0.4.1";
 
 // src/archive.ts
 var ArchiveWriter = class {

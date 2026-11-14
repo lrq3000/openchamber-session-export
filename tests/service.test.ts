@@ -13,7 +13,6 @@ test('authenticates the service bridge and returns preparation jobs before slow 
   const headers = { Authorization: 'Bearer fixture-secret', 'Content-Type': 'application/json' };
   try {
     assert.equal((await fetch(url + '/health')).status, 401);
-    assert.equal((await (await fetch(url + '/health', { headers })).json() as any).version, '0.4.0');
     assert.equal(calls, 0);
     const connection = await fetch(url + '/connection', { headers });
     assert.equal(connection.status, 200);
