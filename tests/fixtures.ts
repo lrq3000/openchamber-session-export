@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import type { Capture, CaptureSnapshot, SessionRecord } from '../src/types.js';
 import { CaptureStore } from '../src/capture-store.js';
 
-export const tempRoot = process.env.SESSION_EXPORT_TEST_TMP ?? 'C:/Users/33632/AppData/Local/Temp/opencode';
-export const temporary = (name: string) => mkdtemp(join(tempRoot, `session-export-${name}-`));
+export const tempRoot = process.env.SESSION_EXPORT_TEST_TMP ?? join(tmpdir(), 'opencode');
+export const temporary = async (name: string) => { await mkdir(tempRoot, { recursive: true }); return mkdtemp(join(await realpath(tempRoot), `session-export-${name}-`)); };
 
 /** Literal API-shaped evidence; it deliberately includes an unfinished assistant and unfamiliar content. */
 export function capture(): Capture {

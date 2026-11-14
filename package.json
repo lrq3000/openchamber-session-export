@@ -1,9 +1,9 @@
 {
   "name": "openchamber-session-export",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "metadata": { "version": "0.2.1", "creation": "2026-11-07", "last_updated": "2026-11-12" },
+  "metadata": { "version": "0.3.0", "creation": "2026-11-07", "last_updated": "2026-11-14" },
   "repository": { "type": "git", "url": "git+https://github.com/lrq3000/openchamber-session-export.git" },
   "homepage": "https://github.com/lrq3000/openchamber-session-export#readme",
   "bugs": { "url": "https://github.com/lrq3000/openchamber-session-export/issues" },
@@ -16,7 +16,7 @@
     "test:smoke": "node --import tsx --test tests/smoke/*.test.ts",
     "test:stress": "node --import tsx --test tests/stress/*.test.ts"
   },
-  "dependencies": { "@openchamber/sdk": "2.6.0", "stream-json": "3.8.0", "yazl": "3.3.1" },
+  "dependencies": { "@openchamber/sdk": "2.7.1", "stream-json": "3.8.0", "yazl": "3.3.1" },
   "devDependencies": {
     "@types/node": "26.6.6",
     "@types/yazl": "3.3.1",

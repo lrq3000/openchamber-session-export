@@ -1,9 +1,19 @@
 import { constants } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rename } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rename, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+
+const requiredCapabilities = ['service', 'opencode'];
+const hasRequiredCapabilities = value => Array.isArray(value) && value.length === requiredCapabilities.length && requiredCapabilities.every(capability => value.includes(capability));
+
+async function createBackupDirectory(root, prefix, expectedDevice) {
+  await mkdir(root, { recursive: true });
+  // Detect incompatible staging before copying replacements or pausing a healthy extension (for example /tmp on tmpfs).
+  if (expectedDevice !== undefined && (await stat(root)).dev !== expectedDevice) throw new Error('Update staging must use the installation filesystem. Set --temp-root to a directory on that filesystem; no extension was paused or replaced.');
+  return mkdtemp(join(root, prefix));
+}
 
 /** New installs register through native controls. Updates require exact fingerprints and preserve unrelated files and grants. */
 async function main() {
@@ -35,17 +45,17 @@ async function main() {
   if (!Array.isArray(before.guests)) throw new Error('The extension catalog is invalid.');
   if (!updating && before.guests.some(guest => guest.id === 'session-export')) throw new Error('The extension ID is already registered.');
   const registry = get('--registry') ?? join(homedir(), '.config', 'openchamber', 'extensions.json');
-  const temporary = get('--temp-root') ?? process.env.SESSION_EXPORT_TEST_TMP ?? 'C:/Users/33632/AppData/Local/Temp/opencode';
+  const temporary = get('--temp-root') ?? process.env.SESSION_EXPORT_TEST_TMP ?? join(tmpdir(), 'opencode');
   if (updating) return update({ destination, source, files, before, registry, temporary, request, expectedVersion: get('--expected-version'), expectedHashesPath: get('--expected-hashes') });
-  const backupDirectory = await mkdtemp(join(temporary, 'session-export-install-'));
+  const backupDirectory = await createBackupDirectory(temporary, 'session-export-install-');
   const backup = join(backupDirectory, 'extensions.before.json');
   await copyFile(registry, backup, constants.COPYFILE_EXCL);
   await mkdir(dirname(destination), { recursive: true }); await mkdir(destination);
   for (const file of files) { await mkdir(dirname(join(destination, file)), { recursive: true }); await copyFile(join(source, file), join(destination, file), constants.COPYFILE_EXCL); }
   const installed = await request('/api/guests', 'POST', { path: destination });
   const guest = installed.guest;
-  if (guest?.id !== 'session-export' || !Array.isArray(guest.capabilities?.requested) || guest.capabilities.requested.length !== 1 || guest.capabilities.requested[0] !== 'service') throw new Error('The native installer returned unexpected permissions. Approval was not granted.');
-  await request('/api/guests/session-export/capabilities', 'PUT', { granted: ['service'] });
+  if (guest?.id !== 'session-export' || !hasRequiredCapabilities(guest.capabilities?.requested)) throw new Error('The native installer returned unexpected permissions. Approval was not granted.');
+  await request('/api/guests/session-export/capabilities', 'PUT', { granted: requiredCapabilities });
   const catalog = await request('/api/guests');
   for (const existing of before.guests) if (!catalog.guests.some(guest => guest.id === existing.id && guest.path === existing.path)) throw new Error('An existing extension changed during installation; inspect the retained registry backup.');
   const bridge = async path => {
@@ -60,7 +70,7 @@ async function main() {
 async function update({ destination, source, files, before, registry, temporary, request, expectedVersion, expectedHashesPath }) {
   const same = (a, b) => process.platform === 'win32' ? resolve(a).toLowerCase() === resolve(b).toLowerCase() : resolve(a) === resolve(b);
   const guest = before.guests.find(value => value.id === 'session-export');
-  if (!guest || !same(guest.path, destination) || guest.enabled !== true || JSON.stringify(guest.capabilities?.granted) !== '["service"]') throw new Error('Update requires the explicitly selected, enabled installation with its existing service-only grant.');
+  if (!guest || !same(guest.path, destination) || guest.enabled !== true || !hasRequiredCapabilities(guest.capabilities?.requested) || !hasRequiredCapabilities(guest.capabilities?.granted)) throw new Error('Update requires the explicitly selected, enabled installation with service and OpenCode access already approved through native controls. Existing grants are never widened by an update.');
   if (!expectedVersion || !expectedHashesPath) throw new Error('Updates require --expected-version and --expected-hashes pointing to a reviewed SHA-256 map of all four managed files.');
   const metadata = await lstat(destination);
   if (!metadata.isDirectory() || metadata.isSymbolicLink() || !same(await realpath(destination), destination)) throw new Error('The update destination must be a regular local directory without symbolic-link ancestors.');
@@ -74,7 +84,7 @@ async function update({ destination, source, files, before, registry, temporary,
     }
   };
   await verify();
-  const backupDirectory = await mkdtemp(join(temporary, 'session-export-update-')), backup = join(backupDirectory, 'extensions.before.json');
+  const backupDirectory = await createBackupDirectory(temporary, 'session-export-update-', metadata.dev), backup = join(backupDirectory, 'extensions.before.json');
   await copyFile(registry, backup, constants.COPYFILE_EXCL);
   for (const file of files) {
     await mkdir(dirname(join(backupDirectory, 'extension', file)), { recursive: true });

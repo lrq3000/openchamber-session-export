@@ -1,8 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdir, readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, realpath, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { request as httpRequest } from 'node:http';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { dirname } from 'node:path';
 import { createService } from '../src/service.js';
 import { Exporter } from '../src/exporter.js';
 import { isLocalDesktop } from '../src/client-context.js';
@@ -12,6 +15,24 @@ test('requests a native picker only for Windows Electron with an unambiguous loo
   const desktop = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OpenChamber/2.6.1 Chrome/130 Electron/40.0.0';
   assert.equal(isLocalDesktop(desktop, ['http://127.0.0.1:57123']), true);
   for (const [ua, origins] of [[desktop.replace(' Electron/40.0.0', ''), ['http://127.0.0.1:57123']], [desktop, ['https://remote.example']], [desktop, []], [desktop, ['null']], [desktop, ['http://127.0.0.1.example']], [desktop.replace('Windows NT 10.0', 'Macintosh'), ['http://127.0.0.1:57123']]] as [string, string[]][]) assert.equal(isLocalDesktop(ua, origins), false);
+});
+
+test('test evidence uses the OS temporary root or explicit override and creates its missing base', async () => {
+  const root = await temporary('portable-temp');
+  const run = async (override?: string) => {
+    const { stdout } = await promisify(execFile)(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', 'import { tempRoot, temporary } from "./tests/fixtures.ts"; console.log(JSON.stringify({ root: tempRoot, path: await temporary("portable-child") }));'], { env: { ...process.env, TMPDIR: root, TMP: root, TEMP: root, SESSION_EXPORT_TEST_TMP: override }, windowsHide: true, timeout: 10000 });
+    return JSON.parse(stdout);
+  };
+  const automatic = await run();
+  assert.equal(automatic.root, join(root, 'opencode')); assert.equal(dirname(automatic.path), join(root, 'opencode'));
+  const explicit = join(root, 'explicit-override');
+  const selected = await run(explicit);
+  assert.equal(selected.root, explicit); assert.equal(dirname(selected.path), explicit);
+  // macOS commonly exposes its temporary directory through /var -> /private/var; fixture paths must be canonical for attachment safety checks.
+  const alias = join(root, 'system-temp-alias');
+  await symlink(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const aliased = await run(alias);
+  assert.equal(aliased.root, alias); assert.equal(dirname(aliased.path), await realpath(alias));
 });
 
 test('opens only one chooser when two request bodies finish concurrently', async () => {

@@ -176,3 +176,46 @@ test('rejects object and array continuation cursors instead of accepting a parti
     finally { await server.close(); }
   }
 });
+
+test('authenticates every native read and reports denied durable logs without exposing the token', async () => {
+  const token = 'fixture-private-opencode-bearer';
+  const server = createServer((request, response) => {
+    if (request.headers.authorization !== `Bearer ${token}`) { response.writeHead(401); response.end(); return; }
+    const url = new URL(request.url!, 'http://localhost');
+    if (url.pathname.endsWith('/log')) { response.writeHead(403); response.end('NOT_A_LISTED_READ'); return; }
+    response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(route(url)));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const snapshot = await new SessionSource({ url: `http://127.0.0.1:${(server.address() as any).port}`, version: null, token }).capture(capture().target);
+    const result = await materialize(snapshot);
+    assert.equal(result.serverVersion, null);
+    assert.equal(result.sessions.length, 2); assert.equal(result.sessions[0].messages.length, 2);
+    assert.equal(result.sessions[0].log.available, false);
+    assert.ok(result.warnings.some(warning => /Durable log unavailable.*403/.test(warning)));
+    assert.equal(JSON.stringify(result).includes(token), false); assert.equal(JSON.stringify(snapshot).includes(token), false);
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+for (const status of [401, 403, 413]) test(`a native core read rejected with ${status} never becomes a successful partial capture`, async () => {
+  const server = createServer((request, response) => {
+    const url = new URL(request.url!, 'http://localhost');
+    if (url.pathname.endsWith('/message')) { response.writeHead(status); response.end('fixture-private-upstream-error'); return; }
+    response.setHeader('Content-Type', 'application/json'); response.end(JSON.stringify(route(url)));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  try { await assert.rejects(new SessionSource({ url: `http://127.0.0.1:${(server.address() as any).port}`, version: null, token: 'fixture-bearer' }).capture(capture().target), error => String(error).includes(String(status)) && !String(error).includes('fixture-private')); }
+  finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+});
+
+test('never follows a native redirect or forwards its bearer to another listener', async () => {
+  let leakedRequests = 0;
+  const other = createServer((_request, response) => { leakedRequests++; response.end('{}'); });
+  await new Promise<void>(resolve => other.listen(0, '127.0.0.1', resolve));
+  const server = createServer((_request, response) => { response.writeHead(302, { Location: `http://127.0.0.1:${(other.address() as any).port}/` }); response.end(); });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    await assert.rejects(new SessionSource({ url: `http://127.0.0.1:${(server.address() as any).port}`, version: null, token: 'fixture-private' }).capture(capture().target));
+    assert.equal(leakedRequests, 0);
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await new Promise<void>(resolve => other.close(() => resolve())); }
+});

@@ -106,7 +106,7 @@ export class ArchiveWriter {
   private async *manifest(capture: CaptureSnapshot, archive: CaptureStore, includeFiles: boolean): AsyncGenerator<string> {
     const evidence = new CaptureStore(capture.root);
     let stable = true; for await (const session of evidence.sessions(capture)) if (session.active !== false || session.changed) stable = false;
-    yield JSON.stringify({ schema: 'openchamber-session-export/1', version: '0.2.1', target: capture.target, startedAt: capture.startedAt, endedAt: capture.endedAt, serverVersion: capture.serverVersion, source: 'OpenCode v2 projected message pages and optional durable log; not the native settled-only transfer export' }).slice(0, -1);
+    yield JSON.stringify({ schema: 'openchamber-session-export/1', version: '0.3.0', target: capture.target, startedAt: capture.startedAt, endedAt: capture.endedAt, serverVersion: capture.serverVersion, source: 'OpenCode v2 projected message pages and optional durable log; not the native settled-only transfer export' }).slice(0, -1);
     yield `,"coverage":{"hiddenReasoning":"not available","providerWireTraffic":"not captured","atomic":false,"observedStable":${stable},"logs":[`;
     let comma = false;
     for await (const session of evidence.sessions(capture)) { if (comma) yield ','; comma = true; yield JSON.stringify({ sessionID: session.id, ...session.log }); }
