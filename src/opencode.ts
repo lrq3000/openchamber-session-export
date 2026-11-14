@@ -9,7 +9,8 @@ import { CaptureStore } from './capture-store.js';
 import { JsonDocument, type JsonPath } from './json-stream.js';
 import type { CaptureSnapshot, ExportTarget, SessionRecord } from './types.js';
 
-export interface Connection { url: string; version: string }
+/** Backend-only credentials. Native host access does not expose the upstream version. */
+export interface Connection { url: string; version: string | null; token?: string }
 
 /** GET-only projected capture. No cumulative evidence limit: page values, session records and logs are staged on disk. */
 export class SessionSource {
@@ -110,7 +111,7 @@ export class SessionSource {
     for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value);
     const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, { redirect: 'error', signal: controller.signal, cache: 'no-store' });
+      const response = await fetch(url, { redirect: 'error', signal: controller.signal, cache: 'no-store', ...(this.connection.token ? { headers: { Authorization: `Bearer ${this.connection.token}` } } : {}) });
       if (!response.ok) { await response.body?.cancel(); throw new Error(`OpenCode GET ${path} returned ${response.status}.`); }
       return response;
     } finally { clearTimeout(timer); }

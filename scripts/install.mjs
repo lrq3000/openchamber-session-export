@@ -5,6 +5,9 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
+const requiredCapabilities = ['service', 'opencode'];
+const hasRequiredCapabilities = value => Array.isArray(value) && value.length === requiredCapabilities.length && requiredCapabilities.every(capability => value.includes(capability));
+
 /** New installs register through native controls. Updates require exact fingerprints and preserve unrelated files and grants. */
 async function main() {
   const args = process.argv.slice(2);
@@ -44,8 +47,8 @@ async function main() {
   for (const file of files) { await mkdir(dirname(join(destination, file)), { recursive: true }); await copyFile(join(source, file), join(destination, file), constants.COPYFILE_EXCL); }
   const installed = await request('/api/guests', 'POST', { path: destination });
   const guest = installed.guest;
-  if (guest?.id !== 'session-export' || !Array.isArray(guest.capabilities?.requested) || guest.capabilities.requested.length !== 1 || guest.capabilities.requested[0] !== 'service') throw new Error('The native installer returned unexpected permissions. Approval was not granted.');
-  await request('/api/guests/session-export/capabilities', 'PUT', { granted: ['service'] });
+  if (guest?.id !== 'session-export' || !hasRequiredCapabilities(guest.capabilities?.requested)) throw new Error('The native installer returned unexpected permissions. Approval was not granted.');
+  await request('/api/guests/session-export/capabilities', 'PUT', { granted: requiredCapabilities });
   const catalog = await request('/api/guests');
   for (const existing of before.guests) if (!catalog.guests.some(guest => guest.id === existing.id && guest.path === existing.path)) throw new Error('An existing extension changed during installation; inspect the retained registry backup.');
   const bridge = async path => {
@@ -60,7 +63,7 @@ async function main() {
 async function update({ destination, source, files, before, registry, temporary, request, expectedVersion, expectedHashesPath }) {
   const same = (a, b) => process.platform === 'win32' ? resolve(a).toLowerCase() === resolve(b).toLowerCase() : resolve(a) === resolve(b);
   const guest = before.guests.find(value => value.id === 'session-export');
-  if (!guest || !same(guest.path, destination) || guest.enabled !== true || JSON.stringify(guest.capabilities?.granted) !== '["service"]') throw new Error('Update requires the explicitly selected, enabled installation with its existing service-only grant.');
+  if (!guest || !same(guest.path, destination) || guest.enabled !== true || !hasRequiredCapabilities(guest.capabilities?.requested) || !hasRequiredCapabilities(guest.capabilities?.granted)) throw new Error('Update requires the explicitly selected, enabled installation with service and OpenCode access already approved through native controls. Existing grants are never widened by an update.');
   if (!expectedVersion || !expectedHashesPath) throw new Error('Updates require --expected-version and --expected-hashes pointing to a reviewed SHA-256 map of all four managed files.');
   const metadata = await lstat(destination);
   if (!metadata.isDirectory() || metadata.isSymbolicLink() || !same(await realpath(destination), destination)) throw new Error('The update destination must be a regular local directory without symbolic-link ancestors.');

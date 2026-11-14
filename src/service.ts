@@ -15,7 +15,7 @@ export function createService(token: string, source: { capture(target: ExportTar
     if (typeof header !== 'string' || !timingSafeEqual(createHash('sha256').update(header).digest(), expected)) return respond(response, 401, { error: 'Authentication required.' });
     try {
       const url = new URL(request.url ?? '/', 'http://127.0.0.1');
-      if (url.pathname === '/health' && request.method === 'GET') return respond(response, 200, { ok: true, version: '0.2.1' });
+      if (url.pathname === '/health' && request.method === 'GET') return respond(response, 200, { ok: true, version: '0.3.0' });
       if (url.pathname === '/connection' && request.method === 'GET' && source.connection) return respond(response, 200, await source.connection());
       if (url.pathname === '/prepare' && request.method === 'POST') {
         const input = await body(request), value = input.target;

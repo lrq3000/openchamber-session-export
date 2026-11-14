@@ -7,12 +7,12 @@ export interface CapturedSession {
   changed: boolean; active: boolean | null;
 }
 export interface Capture {
-  target: ExportTarget; startedAt: string; endedAt: string; serverVersion: string;
+  target: ExportTarget; startedAt: string; endedAt: string; serverVersion: string | null;
   sessions: CapturedSession[]; warnings: string[];
 }
 /** Backend-only handles: evidence remains in these files, never in an iframe response or whole-chat array. */
 export interface CaptureSnapshot {
-  root: string; target: ExportTarget; startedAt: string; endedAt: string; serverVersion: string;
+  root: string; target: ExportTarget; startedAt: string; endedAt: string; serverVersion: string | null;
   sessionCount: number; messageCount: number; warnings: string[]; warningCount: number;
 }
 export interface SessionRecord {

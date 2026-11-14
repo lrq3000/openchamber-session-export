@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { temporary } from './fixtures.js';
 
-test('installs a stable folder with native service-only approval and preserves existing registrations', async () => {
+test('installs a stable folder with exactly native service and OpenCode approval and preserves existing registrations', async () => {
   const root = await temporary('install');
   const registry = join(root, 'extensions.json'); const original = '{"existing":"untouched"}\n'; await writeFile(registry, original);
   const destination = join(root, 'session-export'); const changes: any[] = [];
@@ -22,7 +22,7 @@ test('installs a stable folder with native service-only approval and preserves e
     if (request.url === '/api/guests' && request.method === 'GET') return reply({ guests: [other, ...(installed ? [installed] : [])] });
     if (request.url === '/api/guests' && request.method === 'POST') {
       changes.push({ method: 'POST', body });
-      installed = { id: 'session-export', path: body.path, enabled: true, capabilities: { requested: ['service'], granted: [] }, service: { granted: false } };
+      installed = { id: 'session-export', path: body.path, enabled: true, capabilities: { requested: ['service', 'opencode'], granted: [] }, service: { granted: false } };
       return reply({ guest: installed }, 201);
     }
     if (request.url === '/api/guests/session-export/capabilities' && request.method === 'PUT') {
@@ -41,7 +41,7 @@ test('installs a stable folder with native service-only approval and preserves e
   try {
     const relative = await run('relative-folder'); assert.notEqual(relative.code, 0); assert.equal(changes.length, 0);
     const result = await run(); assert.equal(result.code, 0, result.error);
-    assert.deepEqual(changes, [{ method: 'POST', body: { path: destination } }, { method: 'PUT', body: { granted: ['service'] } }]);
+    assert.deepEqual(changes, [{ method: 'POST', body: { path: destination } }, { method: 'PUT', body: { granted: ['service', 'opencode'] } }]);
     assert.equal((await readFile(join(destination, 'package.json'))).equals(await readFile('openchamber/package.json')), true);
     assert.equal(await readFile(registry, 'utf8'), original);
     const metadata = JSON.parse(result.output); assert.equal(await readFile(metadata.backup, 'utf8'), original);
@@ -63,7 +63,7 @@ test('updates only an exactly fingerprinted existing extension after backup and 
   await writeFile(join(destination, 'retain.txt'), 'unrelated local file');
   await writeFile(registry, '{"other":"preserved"}\n');
   const other = { id: 'other', path: '/other', enabled: true, capabilities: { granted: ['network'] } };
-  const installed = { id: 'session-export', path: destination, enabled: true, capabilities: { requested: ['service'], granted: ['service'] } };
+  const installed = { id: 'session-export', path: destination, enabled: true, capabilities: { requested: ['service', 'opencode'], granted: ['service', 'opencode'] } };
   const changes: unknown[] = [];
   let readinessProbes = 0;
   const server = createServer(async (request, response) => {
@@ -92,6 +92,10 @@ test('updates only an exactly fingerprinted existing extension after backup and 
     assert.notEqual((await run()).code, 0); assert.deepEqual(changes, []);
     for (const file of files) assert.deepEqual(await readFile(join(destination, file)), original.get(file));
     await writeFile(hashesPath, JSON.stringify(hashes));
+    installed.capabilities.granted = ['service'];
+    const unapproved = await run(); assert.notEqual(unapproved.code, 0); assert.deepEqual(changes, []);
+    for (const file of files) assert.deepEqual(await readFile(join(destination, file)), original.get(file));
+    installed.capabilities.granted = ['opencode', 'service'];
     const result = await run(); assert.equal(result.code, 0, result.error);
     assert.deepEqual(changes, [{ enabled: false }, { enabled: true }]);
     const metadata = JSON.parse(result.output);
