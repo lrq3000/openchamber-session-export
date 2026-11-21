@@ -161,9 +161,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// ../../node_modules/buffer-crc32/dist/index.cjs
+// node_modules/buffer-crc32/dist/index.cjs
 var require_dist = __commonJS({
-  "../../node_modules/buffer-crc32/dist/index.cjs"(exports2, module2) {
+  "node_modules/buffer-crc32/dist/index.cjs"(exports2, module2) {
     "use strict";
     function getDefaultExportFromCjs(x) {
       return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
@@ -469,9 +469,9 @@ var require_dist = __commonJS({
   }
 });
 
-// ../../node_modules/yazl/index.js
+// node_modules/yazl/index.js
 var require_yazl = __commonJS({
-  "../../node_modules/yazl/index.js"(exports2) {
+  "node_modules/yazl/index.js"(exports2) {
     var fs = require("fs");
     var Transform3 = require("stream").Transform;
     var PassThrough = require("stream").PassThrough;
@@ -1165,9 +1165,9 @@ var init_private_channel = __esm({
   }
 });
 
-// ../../node_modules/pend/index.js
+// node_modules/pend/index.js
 var require_pend = __commonJS({
-  "../../node_modules/pend/index.js"(exports2, module2) {
+  "node_modules/pend/index.js"(exports2, module2) {
     module2.exports = Pend;
     function Pend() {
       this.pending = 0;
@@ -1220,9 +1220,9 @@ var require_pend = __commonJS({
   }
 });
 
-// ../../node_modules/yauzl/fd-slicer.js
+// node_modules/yauzl/fd-slicer.js
 var require_fd_slicer = __commonJS({
-  "../../node_modules/yauzl/fd-slicer.js"(exports2) {
+  "node_modules/yauzl/fd-slicer.js"(exports2) {
     var fs = require("fs");
     var util = require("util");
     var stream = require("stream");
@@ -1377,9 +1377,9 @@ var require_fd_slicer = __commonJS({
   }
 });
 
-// ../../node_modules/yauzl/crc32.js
+// node_modules/yauzl/crc32.js
 var require_crc32 = __commonJS({
-  "../../node_modules/yauzl/crc32.js"(exports2, module2) {
+  "node_modules/yauzl/crc32.js"(exports2, module2) {
     var CRC_TABLE = new Int32Array([
       0,
       1996959894,
@@ -1649,9 +1649,9 @@ var require_crc32 = __commonJS({
   }
 });
 
-// ../../node_modules/yauzl/index.js
+// node_modules/yauzl/index.js
 var require_yauzl = __commonJS({
-  "../../node_modules/yauzl/index.js"(exports2) {
+  "node_modules/yauzl/index.js"(exports2) {
     var fs = require("fs");
     var zlib = require("zlib");
     var fd_slicer = require_fd_slicer();
@@ -2689,10 +2689,10 @@ var import_node_events = require("node:events");
 var import_node_stream3 = require("node:stream");
 var import_promises3 = require("node:stream/promises");
 
-// ../../node_modules/stream-chain/src/index.js
+// node_modules/stream-chain/src/index.js
 var import_node_stream2 = require("node:stream");
 
-// ../../node_modules/stream-chain/src/defs.js
+// node_modules/stream-chain/src/defs.js
 var defs_exports = {};
 __export(defs_exports, {
   Stop: () => Stop,
@@ -2812,7 +2812,7 @@ var isWritableNodeStream = (obj) => obj && typeof obj.write === "function" && ty
 var isDuplexNodeStream = (obj) => obj && typeof obj.pipe === "function" && obj._readableState && typeof obj.on === "function" && typeof obj.write === "function";
 var final = finalValue;
 
-// ../../node_modules/stream-chain/src/exec.js
+// node_modules/stream-chain/src/exec.js
 var cancelSymbol = /* @__PURE__ */ Symbol.for("object-stream.cancel");
 var dropNullSymbol = /* @__PURE__ */ Symbol.for("object-stream.dropNull");
 var stopAtSymbol = /* @__PURE__ */ Symbol.for("object-stream.stopAt");
@@ -3089,11 +3089,11 @@ var genBridge = (fns, once3) => {
   return setFunctionList(g, fns);
 };
 
-// ../../node_modules/stream-chain/src/gen.js
+// node_modules/stream-chain/src/gen.js
 var gen = (...fns) => genBridge(fns, false);
 var gen_default = gen;
 
-// ../../node_modules/stream-chain/src/asStream.js
+// node_modules/stream-chain/src/asStream.js
 var import_node_stream = require("node:stream");
 var CANCEL = /* @__PURE__ */ Symbol.for("object-stream.asStreamCancel");
 var asStream = (fn, options2) => {
@@ -3318,7 +3318,7 @@ var asStream = (fn, options2) => {
 };
 var asStream_default = asStream;
 
-// ../../node_modules/stream-chain/src/asWebStream.js
+// node_modules/stream-chain/src/asWebStream.js
 var CANCEL2 = /* @__PURE__ */ Symbol.for("object-stream.asWebStreamCancel");
 var asWebStream = (fn, options2) => {
   if (isDuplexWebStream(fn) || isReadableWebStream(fn) || isWritableWebStream(fn)) {
@@ -3547,7 +3547,7 @@ var asWebStream = (fn, options2) => {
 };
 var asWebStream_default = asWebStream;
 
-// ../../node_modules/stream-chain/src/dataSource.js
+// node_modules/stream-chain/src/dataSource.js
 var dataSource = (fn) => {
   if (typeof fn == "function") return fn;
   if (fn) {
@@ -3558,7 +3558,7 @@ var dataSource = (fn) => {
 };
 var dataSource_default = dataSource;
 
-// ../../node_modules/stream-chain/src/index.js
+// node_modules/stream-chain/src/index.js
 var {
   isReadableWebStream: isReadableWebStream2,
   isWritableWebStream: isWritableWebStream2,
@@ -3731,7 +3731,7 @@ chain.asStream = asStream_default;
 chain.asWebStream = asWebStream_default;
 chain.dataSource = dataSource_default;
 
-// ../../node_modules/stream-chain/src/fun.js
+// node_modules/stream-chain/src/fun.js
 var asArray = (...fns) => {
   fns = fns.filter((fn) => fn).flat(Infinity).map((fn) => isFunctionList(fn) ? getFunctionList(fn) : fn).flat(Infinity);
   if (!fns.length) {
@@ -3781,7 +3781,7 @@ var fun = (...fns) => {
 };
 var fun_default = fun;
 
-// ../../node_modules/stream-chain/src/web/index.js
+// node_modules/stream-chain/src/web/index.js
 var groupFunctions2 = (output, item, index, items) => {
   if (isDuplexWebStream(item)) {
     output.push(item);
@@ -3889,7 +3889,7 @@ chain2.fun = fun_default;
 chain2.asWebStream = asWebStream_default;
 chain2.dataSource = dataSource_default;
 
-// ../../node_modules/stream-chain/src/core/index.js
+// node_modules/stream-chain/src/core/index.js
 var chain3 = (fns, _options) => {
   const flat = (Array.isArray(fns) ? fns : []).flat(Infinity).filter(Boolean).map((fn) => isFunctionList(fn) ? getFunctionList(fn) : fn).flat(Infinity);
   const g = gen_default(...flat);
@@ -3939,7 +3939,7 @@ chain3.gen = gen_default;
 chain3.fun = fun_default;
 chain3.dataSource = dataSource_default;
 
-// ../../node_modules/stream-chain/src/utils/fixUtf8Stream.js
+// node_modules/stream-chain/src/utils/fixUtf8Stream.js
 var dropBOM = (s) => s.charCodeAt(0) === 65279 ? s.slice(1) : s;
 var makeTextDecoderImpl = (options2) => {
   const textDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
@@ -3984,7 +3984,7 @@ var readyPromise = isNode ? import("node:string_decoder").then(
 var fixUtf8Stream = (options2) => impl(options2);
 var fixUtf8Stream_default = fixUtf8Stream;
 
-// ../../node_modules/stream-json/src/core/parser.js
+// node_modules/stream-json/src/core/parser.js
 var patterns = {
   value1: /[\"\{\[\]\-\d]|true\b|false\b|null\b|\s{1,256}/y,
   string: /[^\x00-\x1f\"\\]{1,256}|\\[bfnrt\"\\\/]|\\u[\da-fA-F]{4}|\"/y,
@@ -4633,12 +4633,12 @@ var parser = (options2) => gen_default(fixUtf8Stream_default(options2), jsonPars
 parser.parser = parser;
 var parser_default = parser;
 
-// ../../node_modules/stream-json/src/parser.js
+// node_modules/stream-json/src/parser.js
 parser_default.asStream = (options2) => asStream_default(parser_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 parser_default.asWebStream = (options2) => asWebStream_default(parser_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 var parser_default2 = parser_default;
 
-// ../../node_modules/stream-json/src/core/utils/path-matcher.js
+// node_modules/stream-json/src/core/utils/path-matcher.js
 var DIVERGED = -1;
 var MATCHED = -2;
 var defaultFilter = () => true;
@@ -4709,7 +4709,7 @@ var PathMatcher = class {
 };
 var path_matcher_default = PathMatcher;
 
-// ../../node_modules/stream-json/src/core/filters/filter-base.js
+// node_modules/stream-json/src/core/filters/filter-base.js
 var checkableTokens = {
   startObject: 1,
   startArray: 1,
@@ -4980,7 +4980,7 @@ filterBase.filterBase = filterBase;
 filterBase.makeStackDiffer = makeStackDiffer;
 var filter_base_default = filterBase;
 
-// ../../node_modules/stream-json/src/core/filters/pick.js
+// node_modules/stream-json/src/core/filters/pick.js
 var pick = (
   /** @type {any} */
   filter_base_default()
@@ -4988,17 +4988,17 @@ var pick = (
 pick.pick = pick;
 var pick_default = pick;
 
-// ../../node_modules/stream-json/src/core/utils/with-parser.js
+// node_modules/stream-json/src/core/utils/with-parser.js
 var withParser = (fn, options2) => gen_default(parser_default(options2), fn(options2));
 withParser.withParser = withParser;
 var with_parser_default = withParser;
 
-// ../../node_modules/stream-json/src/utils/with-parser.js
+// node_modules/stream-json/src/utils/with-parser.js
 with_parser_default.asStream = (fn, options2) => asStream_default(with_parser_default(fn, options2), { ...options2, writableObjectMode: false, readableObjectMode: true });
 with_parser_default.asWebStream = (fn, options2) => asWebStream_default(with_parser_default(fn, options2), { ...options2, writableObjectMode: false, readableObjectMode: true });
 var with_parser_default2 = with_parser_default;
 
-// ../../node_modules/stream-json/src/filters/pick.js
+// node_modules/stream-json/src/filters/pick.js
 pick_default.asStream = (options2) => asStream_default(pick_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 pick_default.asWebStream = (options2) => asWebStream_default(pick_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 pick_default.withParser = (options2) => with_parser_default2(pick_default, { packKeys: true, ...options2 });
@@ -5012,7 +5012,7 @@ pick_default.withParserAsWebStream = (options2) => (
 );
 var pick_default2 = pick_default;
 
-// ../../node_modules/stream-json/src/core/filters/ignore.js
+// node_modules/stream-json/src/core/filters/ignore.js
 var ignore = (options2) => {
   const stackDiffer = makeStackDiffer();
   return filterBase({
@@ -5027,7 +5027,7 @@ var ignore = (options2) => {
 ignore.ignore = ignore;
 var ignore_default = ignore;
 
-// ../../node_modules/stream-json/src/filters/ignore.js
+// node_modules/stream-json/src/filters/ignore.js
 ignore_default.asStream = (options2) => asStream_default(ignore_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 ignore_default.asWebStream = (options2) => asWebStream_default(ignore_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 ignore_default.withParser = (options2) => with_parser_default2(ignore_default, { packKeys: true, ...options2 });
@@ -5041,7 +5041,7 @@ ignore_default.withParserAsWebStream = (options2) => (
 );
 var ignore_default2 = ignore_default;
 
-// ../../node_modules/stream-json/src/core/stringer.js
+// node_modules/stream-json/src/core/stringer.js
 var noCommaAfter = { startObject: 1, startArray: 1, endKey: 1, keyValue: 1 };
 var noSpaceAfter = { endObject: 1, endArray: 1, "": 1 };
 var noSpaceBefore = { startObject: 1, startArray: 1 };
@@ -5168,7 +5168,7 @@ var stringer = (options2) => {
 stringer.stringer = stringer;
 var stringer_default = stringer;
 
-// ../../node_modules/stream-json/src/stringer.js
+// node_modules/stream-json/src/stringer.js
 stringer_default.asStream = (options2) => asStream_default(stringer_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 stringer_default.asWebStream = (options2) => asWebStream_default(stringer_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 var stringer_default2 = stringer_default;
@@ -5902,7 +5902,7 @@ ID: ${label(session.id)}
 };
 
 // src/constants.ts
-var RELEASE_VERSION = "0.4.1";
+var RELEASE_VERSION = "0.5.0";
 
 // src/archive.ts
 var ArchiveWriter = class {

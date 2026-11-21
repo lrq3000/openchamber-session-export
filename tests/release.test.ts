@@ -24,8 +24,11 @@ test('standalone source release retains private development packaging and synchr
   for (const version of [ui.version, root.metadata.version, ui.metadata.version, lock.version, lock.packages[''].version]) assert.equal(version, root.version);
   for (const metadata of [root.metadata, ui.metadata]) {
     assert.equal(metadata.creation, '2026-11-07');
-    assert.equal(metadata.last_updated, '2026-11-14');
+    assert.match(metadata.last_updated, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(new Date(metadata.last_updated).toISOString().slice(0, 10), metadata.last_updated);
+    assert.ok(metadata.last_updated >= metadata.creation);
   }
+  assert.equal(ui.metadata.last_updated, root.metadata.last_updated);
   assert.equal(readFileSync('AUTHOR.txt', 'utf8').trim(), 'Stephen Karl Larroque <LRQ3000@gmail.com>');
   assert.match(readFileSync('LICENSE.txt', 'utf8'), /Apache License/);
 });
