@@ -161,9 +161,9 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 
-// node_modules/buffer-crc32/dist/index.cjs
+// ../../node_modules/buffer-crc32/dist/index.cjs
 var require_dist = __commonJS({
-  "node_modules/buffer-crc32/dist/index.cjs"(exports2, module2) {
+  "../../node_modules/buffer-crc32/dist/index.cjs"(exports2, module2) {
     "use strict";
     function getDefaultExportFromCjs(x) {
       return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
@@ -469,9 +469,9 @@ var require_dist = __commonJS({
   }
 });
 
-// node_modules/yazl/index.js
+// ../../node_modules/yazl/index.js
 var require_yazl = __commonJS({
-  "node_modules/yazl/index.js"(exports2) {
+  "../../node_modules/yazl/index.js"(exports2) {
     var fs = require("fs");
     var Transform3 = require("stream").Transform;
     var PassThrough = require("stream").PassThrough;
@@ -1165,9 +1165,9 @@ var init_private_channel = __esm({
   }
 });
 
-// node_modules/pend/index.js
+// ../../node_modules/pend/index.js
 var require_pend = __commonJS({
-  "node_modules/pend/index.js"(exports2, module2) {
+  "../../node_modules/pend/index.js"(exports2, module2) {
     module2.exports = Pend;
     function Pend() {
       this.pending = 0;
@@ -1220,9 +1220,9 @@ var require_pend = __commonJS({
   }
 });
 
-// node_modules/yauzl/fd-slicer.js
+// ../../node_modules/yauzl/fd-slicer.js
 var require_fd_slicer = __commonJS({
-  "node_modules/yauzl/fd-slicer.js"(exports2) {
+  "../../node_modules/yauzl/fd-slicer.js"(exports2) {
     var fs = require("fs");
     var util = require("util");
     var stream = require("stream");
@@ -1377,9 +1377,9 @@ var require_fd_slicer = __commonJS({
   }
 });
 
-// node_modules/yauzl/crc32.js
+// ../../node_modules/yauzl/crc32.js
 var require_crc32 = __commonJS({
-  "node_modules/yauzl/crc32.js"(exports2, module2) {
+  "../../node_modules/yauzl/crc32.js"(exports2, module2) {
     var CRC_TABLE = new Int32Array([
       0,
       1996959894,
@@ -1649,9 +1649,9 @@ var require_crc32 = __commonJS({
   }
 });
 
-// node_modules/yauzl/index.js
+// ../../node_modules/yauzl/index.js
 var require_yauzl = __commonJS({
-  "node_modules/yauzl/index.js"(exports2) {
+  "../../node_modules/yauzl/index.js"(exports2) {
     var fs = require("fs");
     var zlib = require("zlib");
     var fd_slicer = require_fd_slicer();
@@ -2689,10 +2689,10 @@ var import_node_events = require("node:events");
 var import_node_stream3 = require("node:stream");
 var import_promises3 = require("node:stream/promises");
 
-// node_modules/stream-chain/src/index.js
+// ../../node_modules/stream-chain/src/index.js
 var import_node_stream2 = require("node:stream");
 
-// node_modules/stream-chain/src/defs.js
+// ../../node_modules/stream-chain/src/defs.js
 var defs_exports = {};
 __export(defs_exports, {
   Stop: () => Stop,
@@ -2812,7 +2812,7 @@ var isWritableNodeStream = (obj) => obj && typeof obj.write === "function" && ty
 var isDuplexNodeStream = (obj) => obj && typeof obj.pipe === "function" && obj._readableState && typeof obj.on === "function" && typeof obj.write === "function";
 var final = finalValue;
 
-// node_modules/stream-chain/src/exec.js
+// ../../node_modules/stream-chain/src/exec.js
 var cancelSymbol = /* @__PURE__ */ Symbol.for("object-stream.cancel");
 var dropNullSymbol = /* @__PURE__ */ Symbol.for("object-stream.dropNull");
 var stopAtSymbol = /* @__PURE__ */ Symbol.for("object-stream.stopAt");
@@ -3089,11 +3089,11 @@ var genBridge = (fns, once3) => {
   return setFunctionList(g, fns);
 };
 
-// node_modules/stream-chain/src/gen.js
+// ../../node_modules/stream-chain/src/gen.js
 var gen = (...fns) => genBridge(fns, false);
 var gen_default = gen;
 
-// node_modules/stream-chain/src/asStream.js
+// ../../node_modules/stream-chain/src/asStream.js
 var import_node_stream = require("node:stream");
 var CANCEL = /* @__PURE__ */ Symbol.for("object-stream.asStreamCancel");
 var asStream = (fn, options2) => {
@@ -3318,7 +3318,7 @@ var asStream = (fn, options2) => {
 };
 var asStream_default = asStream;
 
-// node_modules/stream-chain/src/asWebStream.js
+// ../../node_modules/stream-chain/src/asWebStream.js
 var CANCEL2 = /* @__PURE__ */ Symbol.for("object-stream.asWebStreamCancel");
 var asWebStream = (fn, options2) => {
   if (isDuplexWebStream(fn) || isReadableWebStream(fn) || isWritableWebStream(fn)) {
@@ -3547,7 +3547,7 @@ var asWebStream = (fn, options2) => {
 };
 var asWebStream_default = asWebStream;
 
-// node_modules/stream-chain/src/dataSource.js
+// ../../node_modules/stream-chain/src/dataSource.js
 var dataSource = (fn) => {
   if (typeof fn == "function") return fn;
   if (fn) {
@@ -3558,7 +3558,7 @@ var dataSource = (fn) => {
 };
 var dataSource_default = dataSource;
 
-// node_modules/stream-chain/src/index.js
+// ../../node_modules/stream-chain/src/index.js
 var {
   isReadableWebStream: isReadableWebStream2,
   isWritableWebStream: isWritableWebStream2,
@@ -3731,7 +3731,7 @@ chain.asStream = asStream_default;
 chain.asWebStream = asWebStream_default;
 chain.dataSource = dataSource_default;
 
-// node_modules/stream-chain/src/fun.js
+// ../../node_modules/stream-chain/src/fun.js
 var asArray = (...fns) => {
   fns = fns.filter((fn) => fn).flat(Infinity).map((fn) => isFunctionList(fn) ? getFunctionList(fn) : fn).flat(Infinity);
   if (!fns.length) {
@@ -3781,7 +3781,7 @@ var fun = (...fns) => {
 };
 var fun_default = fun;
 
-// node_modules/stream-chain/src/web/index.js
+// ../../node_modules/stream-chain/src/web/index.js
 var groupFunctions2 = (output, item, index, items) => {
   if (isDuplexWebStream(item)) {
     output.push(item);
@@ -3889,7 +3889,7 @@ chain2.fun = fun_default;
 chain2.asWebStream = asWebStream_default;
 chain2.dataSource = dataSource_default;
 
-// node_modules/stream-chain/src/core/index.js
+// ../../node_modules/stream-chain/src/core/index.js
 var chain3 = (fns, _options) => {
   const flat = (Array.isArray(fns) ? fns : []).flat(Infinity).filter(Boolean).map((fn) => isFunctionList(fn) ? getFunctionList(fn) : fn).flat(Infinity);
   const g = gen_default(...flat);
@@ -3939,7 +3939,7 @@ chain3.gen = gen_default;
 chain3.fun = fun_default;
 chain3.dataSource = dataSource_default;
 
-// node_modules/stream-chain/src/utils/fixUtf8Stream.js
+// ../../node_modules/stream-chain/src/utils/fixUtf8Stream.js
 var dropBOM = (s) => s.charCodeAt(0) === 65279 ? s.slice(1) : s;
 var makeTextDecoderImpl = (options2) => {
   const textDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
@@ -3984,7 +3984,7 @@ var readyPromise = isNode ? import("node:string_decoder").then(
 var fixUtf8Stream = (options2) => impl(options2);
 var fixUtf8Stream_default = fixUtf8Stream;
 
-// node_modules/stream-json/src/core/parser.js
+// ../../node_modules/stream-json/src/core/parser.js
 var patterns = {
   value1: /[\"\{\[\]\-\d]|true\b|false\b|null\b|\s{1,256}/y,
   string: /[^\x00-\x1f\"\\]{1,256}|\\[bfnrt\"\\\/]|\\u[\da-fA-F]{4}|\"/y,
@@ -4633,12 +4633,12 @@ var parser = (options2) => gen_default(fixUtf8Stream_default(options2), jsonPars
 parser.parser = parser;
 var parser_default = parser;
 
-// node_modules/stream-json/src/parser.js
+// ../../node_modules/stream-json/src/parser.js
 parser_default.asStream = (options2) => asStream_default(parser_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 parser_default.asWebStream = (options2) => asWebStream_default(parser_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 var parser_default2 = parser_default;
 
-// node_modules/stream-json/src/core/utils/path-matcher.js
+// ../../node_modules/stream-json/src/core/utils/path-matcher.js
 var DIVERGED = -1;
 var MATCHED = -2;
 var defaultFilter = () => true;
@@ -4709,7 +4709,7 @@ var PathMatcher = class {
 };
 var path_matcher_default = PathMatcher;
 
-// node_modules/stream-json/src/core/filters/filter-base.js
+// ../../node_modules/stream-json/src/core/filters/filter-base.js
 var checkableTokens = {
   startObject: 1,
   startArray: 1,
@@ -4980,7 +4980,7 @@ filterBase.filterBase = filterBase;
 filterBase.makeStackDiffer = makeStackDiffer;
 var filter_base_default = filterBase;
 
-// node_modules/stream-json/src/core/filters/pick.js
+// ../../node_modules/stream-json/src/core/filters/pick.js
 var pick = (
   /** @type {any} */
   filter_base_default()
@@ -4988,17 +4988,17 @@ var pick = (
 pick.pick = pick;
 var pick_default = pick;
 
-// node_modules/stream-json/src/core/utils/with-parser.js
+// ../../node_modules/stream-json/src/core/utils/with-parser.js
 var withParser = (fn, options2) => gen_default(parser_default(options2), fn(options2));
 withParser.withParser = withParser;
 var with_parser_default = withParser;
 
-// node_modules/stream-json/src/utils/with-parser.js
+// ../../node_modules/stream-json/src/utils/with-parser.js
 with_parser_default.asStream = (fn, options2) => asStream_default(with_parser_default(fn, options2), { ...options2, writableObjectMode: false, readableObjectMode: true });
 with_parser_default.asWebStream = (fn, options2) => asWebStream_default(with_parser_default(fn, options2), { ...options2, writableObjectMode: false, readableObjectMode: true });
 var with_parser_default2 = with_parser_default;
 
-// node_modules/stream-json/src/filters/pick.js
+// ../../node_modules/stream-json/src/filters/pick.js
 pick_default.asStream = (options2) => asStream_default(pick_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 pick_default.asWebStream = (options2) => asWebStream_default(pick_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 pick_default.withParser = (options2) => with_parser_default2(pick_default, { packKeys: true, ...options2 });
@@ -5012,7 +5012,7 @@ pick_default.withParserAsWebStream = (options2) => (
 );
 var pick_default2 = pick_default;
 
-// node_modules/stream-json/src/core/filters/ignore.js
+// ../../node_modules/stream-json/src/core/filters/ignore.js
 var ignore = (options2) => {
   const stackDiffer = makeStackDiffer();
   return filterBase({
@@ -5027,7 +5027,7 @@ var ignore = (options2) => {
 ignore.ignore = ignore;
 var ignore_default = ignore;
 
-// node_modules/stream-json/src/filters/ignore.js
+// ../../node_modules/stream-json/src/filters/ignore.js
 ignore_default.asStream = (options2) => asStream_default(ignore_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 ignore_default.asWebStream = (options2) => asWebStream_default(ignore_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 ignore_default.withParser = (options2) => with_parser_default2(ignore_default, { packKeys: true, ...options2 });
@@ -5041,7 +5041,7 @@ ignore_default.withParserAsWebStream = (options2) => (
 );
 var ignore_default2 = ignore_default;
 
-// node_modules/stream-json/src/core/stringer.js
+// ../../node_modules/stream-json/src/core/stringer.js
 var noCommaAfter = { startObject: 1, startArray: 1, endKey: 1, keyValue: 1 };
 var noSpaceAfter = { endObject: 1, endArray: 1, "": 1 };
 var noSpaceBefore = { startObject: 1, startArray: 1 };
@@ -5168,7 +5168,7 @@ var stringer = (options2) => {
 stringer.stringer = stringer;
 var stringer_default = stringer;
 
-// node_modules/stream-json/src/stringer.js
+// ../../node_modules/stream-json/src/stringer.js
 stringer_default.asStream = (options2) => asStream_default(stringer_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 stringer_default.asWebStream = (options2) => asWebStream_default(stringer_default(options2), { writableObjectMode: true, readableObjectMode: true, ...options2 });
 var stringer_default2 = stringer_default;
@@ -5500,7 +5500,8 @@ var SessionSource = class _SessionSource {
     if (options2.signal !== this.signal) return new _SessionSource(this.connection, options2.signal).capture(target, options2);
     if (!/^ses_[a-zA-Z0-9_-]{1,200}$/.test(target.sessionID) || !target.directory) throw new Error("A valid session and directory are required.");
     const store = await CaptureStore.create();
-    const snapshot = { root: store.root, target: { ...target }, startedAt: (/* @__PURE__ */ new Date()).toISOString(), endedAt: "", serverVersion: this.connection.version, sessionCount: 0, messageCount: 0, warnings: [], warningCount: 0 };
+    const includeSubagents = options2.includeSubagents === true;
+    const snapshot = { root: store.root, target: { ...target }, startedAt: (/* @__PURE__ */ new Date()).toISOString(), endedAt: "", serverVersion: this.connection.version, includeSubagents, sessionCount: 0, messageCount: 0, warnings: [], warningCount: 0 };
     const warn = async (text) => {
       await store.append("warnings", { text });
       snapshot.warningCount++;
@@ -5538,7 +5539,7 @@ var SessionSource = class _SessionSource {
         yield "]";
       }
       await this.write(messages(), messagesPath);
-      for (const archived of options2.profile === "resume" ? [] : ["false", "true"]) {
+      for (const archived of includeSubagents ? ["false", "true"] : []) {
         for await (const child of this.pages("/api/session", { parentID: id, archived, order: "asc", limit: "100" }, store, `child-${key}-${archived}`)) {
           const childID = await child.scalar(["id"]);
           if (typeof childID !== "string" || !/^ses_[a-zA-Z0-9_-]{1,200}$/.test(childID)) throw new Error("Invalid descendant session identity.");
@@ -6039,7 +6040,7 @@ var ArchiveWriter = class {
     const evidence = new CaptureStore(capture.root);
     let stable = true;
     for await (const session of evidence.sessions(capture)) if (session.active !== false || session.changed) stable = false;
-    yield JSON.stringify({ schema: "openchamber-session-export/2", version: RELEASE_VERSION, profile: capture.profile ?? "complete", retainHistory: Boolean(capture.retainHistory), target: capture.target, startedAt: capture.startedAt, endedAt: capture.endedAt, serverVersion: capture.serverVersion, source: "OpenCode v2 projected message pages and optional durable log; not the native settled-only transfer export" }).slice(0, -1);
+    yield JSON.stringify({ schema: "openchamber-session-export/2", version: RELEASE_VERSION, profile: capture.profile ?? "complete", includeSubagents: capture.includeSubagents, retainHistory: Boolean(capture.retainHistory), target: capture.target, startedAt: capture.startedAt, endedAt: capture.endedAt, serverVersion: capture.serverVersion, source: "OpenCode v2 projected message pages and optional durable log; not the native settled-only transfer export" }).slice(0, -1);
     yield `,"dependencies":${JSON.stringify(["The destination must supply its own repository/worktree, tools, model/provider, skills, MCP services and credentials.", "Only captured session instructions and pins are portable; external notes/plans and global configuration are not automatically copied.", "Restored files live in a new directory. Historical paths in prose and tool arguments are not execution-time path mappings."])}`;
     yield `,"coverage":{"hiddenReasoning":"not available","providerWireTraffic":"not captured","atomic":false,"observedStable":${stable},"logs":[`;
     let comma = false;
@@ -6202,16 +6203,36 @@ function pinnedMessageIDs(info) {
 async function applyProfile(snapshot, options2 = {}) {
   if (options2.profile !== "resume") return { ...snapshot, profile: "complete" };
   const source = new CaptureStore(snapshot.root), store = await CaptureStore.create();
-  const original = (await source.page("sessions")).records.find((record2) => record2.id === snapshot.target.sessionID);
-  if (!original?.contextPath || !original.instructionsPath) throw new Error("The effective context and session instructions are required for a resume snapshot.");
-  const originalRecord = original, originalInstructions = original.instructionsPath;
-  const record = { ...original, messagesPath: (0, import_node_path9.join)(store.root, "messages.json"), messageIndex: "resume-messages", messageCount: 0, eventsPath: void 0, log: { available: false, error: "Historical events are intentionally excluded from resume snapshots." } };
-  await store.initialize("context-messages");
-  const context = new JsonDocument(original.contextPath), pins = pinnedMessageIDs(await readJsonFile(original.infoPath, 2 * 1024 * 1024));
-  const contextIDs = /* @__PURE__ */ new Set(), warnings = [...snapshot.warnings], pinFiles = [];
+  const warnings = [...snapshot.warnings], extras = [];
+  let warningCount = snapshot.warningCount, messageCount = 0, index = 0;
+  for await (const warning of source.records("warnings")) await store.append("warnings", warning);
+  const warn = async (text) => {
+    await store.append("warnings", { text });
+    warningCount++;
+    if (warnings.length < 25) warnings.push(text);
+  };
+  for await (const original of source.sessions(snapshot)) {
+    options2.signal?.throwIfAborted();
+    const keepHistory = Boolean(options2.retainHistory && original.id === snapshot.target.sessionID);
+    const { record, history } = await resumeSession(original, source, store, `resume-${index++}`, keepHistory, warn, options2.signal);
+    await store.append("sessions", record);
+    messageCount += record.messageCount;
+    if (history) extras.push({ name: "history/conversation.md", path: history });
+  }
+  return { ...snapshot, root: store.root, profile: "resume", retainHistory: Boolean(options2.retainHistory), extras, messageCount, warnings, warningCount };
+}
+async function resumeSession(original, source, store, key, keepHistory, warn, signal) {
+  const { contextPath, instructionsPath } = original;
+  if (!contextPath || !instructionsPath) throw new Error(`The effective context and session instructions for ${original.id} are required for a resume snapshot.`);
+  const record = { ...original, messagesPath: (0, import_node_path9.join)(store.root, `${key}-messages.json`), messageIndex: `${key}-messages`, messageCount: 0, eventsPath: void 0, log: { available: false, error: "Historical events are intentionally excluded from resume snapshots." } };
+  const contextIndex = `${key}-context`;
+  await store.initialize(contextIndex);
+  const context = new JsonDocument(contextPath), sourceInstructions = new JsonDocument(instructionsPath);
+  const pins = pinnedMessageIDs(await readJsonFile(original.infoPath, 2 * 1024 * 1024));
+  const contextIDs = /* @__PURE__ */ new Set(), pinFiles = [];
   let compaction = false;
   for await (const message of context.array([], (0, import_node_path9.join)(store.root, "context"))) {
-    options2.signal?.throwIfAborted();
+    signal?.throwIfAborted();
     const id = String(await message.scalar(["id"])), type = await message.scalar(["type"]);
     if (!/^msg_[a-zA-Z0-9_-]+$/.test(id) || contextIDs.has(id)) throw new Error("The effective context contains a missing or duplicate message identity.");
     contextIDs.add(id);
@@ -6220,14 +6241,14 @@ async function applyProfile(snapshot, options2 = {}) {
       compaction = true;
       path = (0, import_node_path9.join)(store.root, `compaction-${(0, import_node_crypto7.randomUUID)()}.json`);
       await write2(path, message.jsonExcluding([["metadata", "keepID"]]));
-      if (await message.kind(["native", "messages"])) warnings.push("This snapshot includes a provider-native checkpoint. Resume with the original provider/model; a different model may require earlier history.");
+      if (await message.kind(["native", "messages"])) await warn(`${original.id} includes a provider-native checkpoint. Resume with the original provider/model; a different model may require earlier history.`);
     }
-    await store.append("context-messages", { id, path });
+    await store.append(contextIndex, { id, path });
     record.messageCount++;
   }
   let lastContextID;
   for await (const message of source.messages(original)) {
-    options2.signal?.throwIfAborted();
+    signal?.throwIfAborted();
     if (pins.has(message.id)) pinFiles.push(message);
     if (contextIDs.has(message.id)) lastContextID = message.id;
   }
@@ -6239,10 +6260,10 @@ async function applyProfile(snapshot, options2 = {}) {
     await store.append(record.messageIndex, pin);
     record.messageCount++;
   }
-  for await (const item of store.records("context-messages")) await store.append(record.messageIndex, item);
+  for await (const item of store.records(contextIndex, { required: true })) await store.append(record.messageIndex, item);
   let trailing = lastContextID === void 0;
   for await (const message of source.messages(original)) {
-    options2.signal?.throwIfAborted();
+    signal?.throwIfAborted();
     if (trailing && !contextIDs.has(message.id) && !pins.has(message.id)) {
       await store.append(record.messageIndex, message);
       contextIDs.add(message.id);
@@ -6261,11 +6282,12 @@ async function applyProfile(snapshot, options2 = {}) {
     yield "]";
   }
   await write2(record.messagesPath, messages());
-  const instructions = (0, import_node_path9.join)(store.root, "instructions.json");
+  const instructions = (0, import_node_path9.join)(store.root, `${key}-instructions.json`);
   async function* entries() {
     yield "[";
     let comma = false;
-    for await (const item of new JsonDocument(originalInstructions).array([], (0, import_node_path9.join)(store.root, "instruction-items"))) {
+    for await (const item of sourceInstructions.array([], (0, import_node_path9.join)(store.root, "instruction-items"))) {
+      signal?.throwIfAborted();
       if (comma) yield ",";
       comma = true;
       yield* item.json();
@@ -6273,8 +6295,8 @@ async function applyProfile(snapshot, options2 = {}) {
     for (const pin of olderPins) {
       if (comma) yield ",";
       comma = true;
-      const key = `session-export-pinned-${(0, import_node_crypto7.createHash)("sha256").update(pin.id).digest("hex").slice(0, 32)}`;
-      yield `{"key":${JSON.stringify(key)},"value":"Pinned source message:\\n`;
+      const key2 = `session-export-pinned-${(0, import_node_crypto7.createHash)("sha256").update(pin.id).digest("hex").slice(0, 32)}`;
+      yield `{"key":${JSON.stringify(key2)},"value":"Pinned source message:\\n`;
       for await (const text of messageText(new JsonDocument(pin.path))) yield JSON.stringify(text).slice(1, -1);
       yield '"}';
     }
@@ -6282,14 +6304,13 @@ async function applyProfile(snapshot, options2 = {}) {
   }
   await write2(instructions, entries());
   record.instructionsPath = instructions;
-  await store.append("sessions", record);
-  if (!compaction) warnings.push("No reusable compaction is present; the snapshot retains the available effective context and may not be much smaller.");
-  const extras = [];
-  if (options2.retainHistory) {
+  if (!compaction) await warn(`${original.id} has no reusable compaction; the snapshot retains its available effective context and may not be much smaller.`);
+  if (keepHistory) {
     const history = (0, import_node_path9.join)(store.root, "history.md");
     async function* olderText() {
       yield "# Earlier conversation \u2014 reference only\n\nThis document is not restored into active context.\n\n";
-      for await (const item of source.messages(originalRecord)) {
+      for await (const item of source.messages(original)) {
+        signal?.throwIfAborted();
         if (contextIDs.has(item.id) || pins.has(item.id)) continue;
         const document = new JsonDocument(item.path), type = await document.scalar(["type"]);
         if (!["user", "assistant"].includes(String(type))) continue;
@@ -6301,11 +6322,9 @@ async function applyProfile(snapshot, options2 = {}) {
       }
     }
     await write2(history, olderText());
-    extras.push({ name: "history/conversation.md", path: history });
+    return { record, history };
   }
-  for await (const warning of source.records("warnings")) await store.append("warnings", warning);
-  for (const text of warnings.slice(snapshot.warnings.length)) await store.append("warnings", { text });
-  return { ...snapshot, root: store.root, profile: "resume", retainHistory: Boolean(options2.retainHistory), extras, sessionCount: 1, messageCount: record.messageCount, warnings: warnings.slice(0, 25), warningCount: snapshot.warningCount + warnings.length - snapshot.warnings.length };
+  return { record };
 }
 async function* messageText(document) {
   if (await document.kind(["text"]) === "string") yield* document.text(["text"]);
@@ -7214,12 +7233,13 @@ function createService(token2, source, options2 = {}) {
         if (!value || typeof value.sessionID !== "string" || !/^ses_[a-zA-Z0-9_-]{1,200}$/.test(value.sessionID) || typeof value.directory !== "string" || !value.directory || value.directory.length > 4096 || value.directory.includes("\0")) throw new Error("Choose a valid session and directory.");
         const target = { sessionID: value.sessionID, directory: value.directory, title: typeof value.title === "string" ? value.title.slice(0, 500) : void 0 };
         if (input.inspectFiles !== void 0 && typeof input.inspectFiles !== "boolean") throw new Error("Invalid file-inventory option.");
+        if (input.includeSubagents !== void 0 && typeof input.includeSubagents !== "boolean") throw new Error("Invalid subagent inclusion option.");
         if (input.profile !== void 0 && !["complete", "resume"].includes(input.profile) || input.retainHistory !== void 0 && typeof input.retainHistory !== "boolean") throw new Error("Invalid export profile.");
         const job = { id: (0, import_node_crypto13.randomUUID)(), target, state: "running", progress: "Reading session evidence" }, controller = new AbortController();
         if (jobs.size >= 32) jobs.delete(jobs.keys().next().value);
         jobs.set(job.id, job);
         controllers.set(job.id, controller);
-        void exporter.prepare(target, input.inspectFiles === true, { profile: input.profile, retainHistory: input.retainHistory, signal: controller.signal }).then((preview) => {
+        void exporter.prepare(target, input.inspectFiles === true, { profile: input.profile, retainHistory: input.retainHistory, includeSubagents: input.includeSubagents === true, signal: controller.signal }).then((preview) => {
           Object.assign(job, { state: "ready", progress: "Evidence prepared", prepared: preview });
         }).catch((error) => {
           Object.assign(job, { state: "failed", progress: controller.signal.aborted ? "Preparation cancelled" : "Preparation failed", error: safeError(error) });

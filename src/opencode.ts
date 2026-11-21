@@ -21,7 +21,8 @@ export class SessionSource {
     if (options.signal !== this.signal) return new SessionSource(this.connection, options.signal).capture(target, options);
     if (!/^ses_[a-zA-Z0-9_-]{1,200}$/.test(target.sessionID) || !target.directory) throw new Error('A valid session and directory are required.');
     const store = await CaptureStore.create();
-    const snapshot: CaptureSnapshot = { root: store.root, target: { ...target }, startedAt: new Date().toISOString(), endedAt: '', serverVersion: this.connection.version, sessionCount: 0, messageCount: 0, warnings: [], warningCount: 0 };
+    const includeSubagents = options.includeSubagents === true;
+    const snapshot: CaptureSnapshot = { root: store.root, target: { ...target }, startedAt: new Date().toISOString(), endedAt: '', serverVersion: this.connection.version, includeSubagents, sessionCount: 0, messageCount: 0, warnings: [], warningCount: 0 };
     const warn = async (text: string) => {
       await store.append('warnings', { text }); snapshot.warningCount++;
       if (snapshot.warnings.length < 25) snapshot.warnings.push(text);
@@ -54,7 +55,8 @@ export class SessionSource {
         yield ']';
       }
       await this.write(messages(), messagesPath);
-      for (const archived of options.profile === 'resume' ? [] : ['false', 'true']) {
+      // Gate traversal before reading descendant evidence, not just before writing the archive.
+      for (const archived of includeSubagents ? ['false', 'true'] : []) {
         for await (const child of this.pages('/api/session', { parentID: id, archived, order: 'asc', limit: '100' }, store, `child-${key}-${archived}`)) {
           const childID = await child.scalar(['id']);
           if (typeof childID !== 'string' || !/^ses_[a-zA-Z0-9_-]{1,200}$/.test(childID)) throw new Error('Invalid descendant session identity.');

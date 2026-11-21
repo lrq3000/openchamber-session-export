@@ -18,12 +18,18 @@ async function assertExportMode(page: Page, screenshot: string): Promise<void> {
   const frame = page.frameLocator('iframe');
   const mode = frame.getByRole('button', { name: 'Export mode', exact: true });
   const history = frame.getByRole('checkbox', { name: /^Keep earlier conversation for reference only/ });
+  const subagents = frame.getByRole('checkbox', { name: /^Include subagent sessions/ });
+  await subagents.waitFor();
+  assert.equal(await subagents.isChecked(), false);
+  assert.ok((await subagents.boundingBox())!.y < (await mode.boundingBox())!.y);
+  await subagents.check();
   assert.equal(await mode.innerText(), 'Complete');
   assert.equal(await history.isVisible(), false);
   await mode.click();
   assert.equal(await frame.getByRole('option', { name: 'Complete', exact: true }).getAttribute('aria-selected'), 'true');
   await frame.getByRole('option', { name: 'Resume snapshot', exact: true }).click();
   await history.waitFor({ state: 'visible' });
+  assert.equal(await subagents.isChecked(), true, 'Changing export mode must preserve the scope');
   await page.screenshot({ path: screenshot, fullPage: true });
   assert.equal(await mode.innerText(), 'Resume snapshot', `The selector label must reflect the profile already used by the panel; evidence: ${screenshot}`);
   await mode.click();
@@ -45,6 +51,7 @@ async function assertExportMode(page: Page, screenshot: string): Promise<void> {
   await history.uncheck();
   await mode.click(); await frame.getByRole('option', { name: 'Complete', exact: true }).click();
   assert.equal(await history.isVisible(), false);
+  assert.equal(await subagents.isChecked(), true);
 }
 
 test('the real SDK export panel', { timeout: 45000 }, async t => {
@@ -55,11 +62,12 @@ test('the real SDK export panel', { timeout: 45000 }, async t => {
   const targets: string[] = [];
   let chooserCalls = 0, chooserResult: any = { state: 'cancelled' };
   let chooserGate = Promise.resolve(), chooserRelease!: () => void;
-  const service = createService('ui-fixture-secret', { capture: async target => {
+  const service = createService('ui-fixture-secret', { capture: async (target, options) => {
     targets.push(target.sessionID); observed?.(); if (blocked) await gate;
     const data = capture(); data.target = target; data.sessions[0].info.id = target.sessionID;
     if (coverageWarning) data.warnings.push(coverageWarning);
     data.sessions[0].messages[0].files = [{ name: 'generated-image.png', source: { type: 'file', path: image } }];
+    if (options?.includeSubagents) data.sessions.push({ ...data.sessions[0], info: { id: 'ses_child', parentID: target.sessionID }, messages: [], events: [], log: { available: false } });
     return diskCapture(data);
   } }, { picker: { choose: async (_name, signal) => {
     chooserCalls++;
@@ -126,6 +134,26 @@ test('the real SDK export panel', { timeout: 45000 }, async t => {
         } finally { await page.close(); }
       }
       console.log(`Selector UI browser: ${browser.version()}; evidence: ${root}`);
+    });
+    await t.test('changing subagent scope invalidates the measured ZIP and resets for a new target', async () => {
+      const page = await browser.newPage({ viewport: { width: 480, height: 920 } });
+      try {
+        await page.goto(`http://127.0.0.1:${(host.address() as any).port}/`);
+        const frame = page.frameLocator('iframe'), size = frame.locator('#size-preview');
+        const subagents = frame.getByRole('checkbox', { name: /^Include subagent sessions/ });
+        const measure = frame.getByRole('button', { name: 'Measure exact ZIP size', exact: true });
+        await subagents.waitFor({ timeout: 3000 });
+        await subagents.check(); await measure.click();
+        await size.filter({ hasText: /2 session\(s\).*Exact ZIP:/ }).waitFor({ timeout: 5000 });
+        await subagents.uncheck();
+        assert.equal(await size.innerText(), '');
+        await measure.click();
+        await size.filter({ hasText: /1 session\(s\).*Exact ZIP:/ }).waitFor({ timeout: 5000 });
+        await subagents.check();
+        await page.evaluate(() => (window as any).changeSession());
+        await frame.getByText('Another session', { exact: true }).waitFor({ timeout: 3000 });
+        assert.equal(await subagents.isChecked(), false);
+      } finally { await page.close(); }
     });
     await t.test('archive export flow reviews files and preserves the clicked target across focus changes', async () => {
     const page = await browser.newPage({ viewport: { width: 480, height: 920 } });

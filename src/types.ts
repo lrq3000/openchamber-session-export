@@ -14,7 +14,7 @@ export interface Capture {
 export interface CaptureSnapshot {
   root: string; target: ExportTarget; startedAt: string; endedAt: string; serverVersion: string | null;
   sessionCount: number; messageCount: number; warnings: string[]; warningCount: number;
-  profile?: ExportProfile; retainHistory?: boolean;
+  profile?: ExportProfile; retainHistory?: boolean; includeSubagents?: boolean;
   extras?: { name: string; path: string }[];
 }
 export interface SessionRecord {
@@ -25,7 +25,7 @@ export interface SessionRecord {
   instructionsPath?: string; contextPath?: string;
 }
 export type ExportProfile = 'complete' | 'resume';
-export interface CaptureOptions { profile?: ExportProfile; retainHistory?: boolean; signal?: AbortSignal }
+export interface CaptureOptions { profile?: ExportProfile; retainHistory?: boolean; includeSubagents?: boolean; signal?: AbortSignal }
 export interface AssetCandidate {
   id: string; path: string; name: string; sessions: string[]; size: number;
   /** Backend index of every referring session; the bridge returns only a bounded origin preview. */

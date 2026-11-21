@@ -26,8 +26,12 @@ function route(url: URL): unknown {
   if (url.pathname === '/api/session/active') return { data: {} };
   if (url.pathname === '/api/session/ses_root') return { data: fixture.info };
   if (url.pathname === '/api/session/ses_child') return { data: { id: 'ses_child', parentID: 'ses_root', title: 'Child', location: { directory: '/project' }, time: { updated: 1 } } };
+  if (url.pathname === '/api/session/ses_nested') return { data: { id: 'ses_nested', parentID: 'ses_child', title: 'Nested', location: { directory: '/project' }, time: { updated: 1 } } };
+  if (url.pathname.endsWith('/context')) return [];
+  if (url.pathname.endsWith('/instructions/entries')) return [];
   if (url.pathname.endsWith('/message')) {
-    if (url.pathname.includes('ses_child')) return { data: [{ id: 'child_user', type: 'user', text: 'Child evidence' }], cursor: {} };
+    if (url.pathname.includes('ses_child')) return { data: [{ id: 'msg_child_user', type: 'user', text: 'Child evidence' }], cursor: {} };
+    if (url.pathname.includes('ses_nested')) return { data: [{ id: 'msg_nested_user', type: 'user', text: 'Nested evidence' }], cursor: {} };
     return url.searchParams.has('cursor') ? { data: [fixture.messages[1]], cursor: {} } : { data: [fixture.messages[0]], cursor: { next: 'page2' } };
   }
   if (url.pathname === '/api/session') return { data: url.searchParams.get('parentID') === 'ses_root' && url.searchParams.get('archived') === 'true' ? [{ id: 'ses_child' }] : [], cursor: {} };
@@ -37,7 +41,7 @@ function route(url: URL): unknown {
 test('captures every message page, unfinished content, archived descendants and durable watermark using GET only', async () => {
   const server = await fixtureServer(route);
   try {
-    const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target));
+    const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target, { includeSubagents: true }));
     assert.equal(result.sessions.length, 2);
     assert.equal(result.sessions[0].messages.length, 2);
     assert.equal(result.sessions[0].messages[1].content[0].text, 'Check the saved evidence first.');
@@ -47,6 +51,23 @@ test('captures every message page, unfinished content, archived descendants and 
     assert.ok(server.calls.every(call => call.startsWith('GET ')));
   } finally { await server.close(); }
 });
+
+for (const profile of ['complete', 'resume'] as const) {
+  for (const includeSubagents of [undefined, false, true]) {
+    test(`${profile} capture with includeSubagents=${includeSubagents} reads only sessions in scope`, async () => {
+      const server = await fixtureServer(url => url.pathname === '/api/session' &&
+        url.searchParams.get('parentID') === 'ses_child' && url.searchParams.get('archived') === 'false'
+        ? { data: [{ id: 'ses_nested' }], cursor: {} } : route(url));
+      try {
+        const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target, { profile, includeSubagents }));
+        assert.deepEqual(result.sessions.map(session => session.info.id), includeSubagents ? ['ses_root', 'ses_child', 'ses_nested'] : ['ses_root']);
+        assert.equal(server.calls.some(call => call.includes('parentID=')), Boolean(includeSubagents));
+        assert.equal(server.calls.some(call => call.includes('ses_child')), Boolean(includeSubagents));
+        assert.equal(server.calls.some(call => call.endsWith('/log?follow=false')), profile === 'complete');
+      } finally { await server.close(); }
+    });
+  }
+}
 
 test('fails closed on cursor loops and never silently returns a partial transcript', async () => {
   const server = await fixtureServer(url => url.pathname.endsWith('/message') ? { data: [{ id: 'new', type: 'user', text: 'x' }], cursor: { next: 'loop' } } : route(url));
@@ -59,7 +80,7 @@ test('refuses a different project directory and a failed child listing', async (
   try { await assert.rejects(new SessionSource({ url: server.url, version: '2.2.5' }).capture({ ...capture().target, directory: '/another-project' }), /directory/i); }
   finally { await server.close(); }
   const broken = await fixtureServer(url => url.pathname === '/api/session' ? undefined : route(url));
-  try { await assert.rejects(new SessionSource({ url: broken.url, version: '2.2.5' }).capture(capture().target), /404/); }
+  try { await assert.rejects(new SessionSource({ url: broken.url, version: '2.2.5' }).capture(capture().target, { includeSubagents: true }), /404/); }
   finally { await broken.close(); }
 });
 
@@ -187,7 +208,7 @@ test('authenticates every native read and reports denied durable logs without ex
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   try {
-    const snapshot = await new SessionSource({ url: `http://127.0.0.1:${(server.address() as any).port}`, version: null, token }).capture(capture().target);
+    const snapshot = await new SessionSource({ url: `http://127.0.0.1:${(server.address() as any).port}`, version: null, token }).capture(capture().target, { includeSubagents: true });
     const result = await materialize(snapshot);
     assert.equal(result.serverVersion, null);
     assert.equal(result.sessions.length, 2); assert.equal(result.sessions[0].messages.length, 2);

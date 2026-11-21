@@ -8,7 +8,7 @@ import { Exporter } from '../../src/exporter.js';
 import { Importer } from '../../src/importer.js';
 import { unzip } from '../zip-fixture.js';
 
-test('Resume ZIP round-trip preserves native recent text, real pin objects and durable instructions without old tools', { timeout: 90000 }, async () => {
+test('Resume ZIP round-trip preserves effective context and instructions for opted-in children', { timeout: 90000 }, async () => {
   const fixture = await nativeFixture([resolve('openchamber/plugin')]);
   try {
     const seed = await fixture.request('/api/session', 'POST', { location: { directory: fixture.project }, title: 'Resume source' });
@@ -25,9 +25,18 @@ test('Resume ZIP round-trip preserves native recent text, real pin objects and d
     ];
     await fixture.request('/api/experimental/session/import', 'POST', { info, messages, location: { directory: fixture.project } });
     await fixture.request('/api/experimental/session/ses_resume_source/instructions/entries/policy', 'PUT', { value: 'Durable instruction from source.' });
+    const child = { ...seed, id: 'ses_resume_child', parentID: info.id, title: 'Resume child' };
+    await fixture.request('/api/experimental/session/import', 'POST', { info: child, location: { directory: fixture.project }, messages: [
+      { id: 'msg_child_old', type: 'user', text: 'Old child history must stay out of the ZIP.', time: { created: 1 } },
+      { id: 'msg_child_recent', type: 'user', text: 'Child recent context.', time: { created: 2 } },
+      { id: 'msg_child_checkpoint', type: 'compaction', status: 'completed', reason: 'manual', summary: 'Child checkpoint.', metadata: { keepID: 'msg_child_recent' }, time: { created: 3 } },
+      { id: 'msg_child_tail', type: 'user', text: 'Continue child work.', time: { created: 4 } },
+    ] });
+    await fixture.request(`/api/experimental/session/${child.id}/instructions/entries/policy`, 'PUT', { value: 'Only the child should see this instruction.' });
     const expected = await fixture.request('/api/session/ses_resume_source/context'), client = await connectFixturePlugin(fixture);
+    const expectedChild = await fixture.request(`/api/session/${child.id}/context`);
     const exporter = new Exporter(new SessionSource(client.connection()));
-    const preview = await exporter.prepare({ sessionID: info.id, directory: fixture.project }, false, { profile: 'resume', retainHistory: true });
+    const preview = await exporter.prepare({ sessionID: info.id, directory: fixture.project }, false, { profile: 'resume', includeSubagents: true, retainHistory: true });
     const job = exporter.start(preview.id, { outputDirectory: join(fixture.root, 'exports') });
     let archive: any;
     for (let attempt = 0; attempt < 300; attempt++) {
@@ -38,13 +47,21 @@ test('Resume ZIP round-trip preserves native recent text, real pin objects and d
     assert.match(history, /Earlier visible conversation/); assert.ok(!history.includes('OBSOLETE_TOOL_OUTPUT'));
     const payload = JSON.parse(entries.get('session.json')!.toString());
     assert.ok(!JSON.stringify(payload.messages).includes('OBSOLETE_TOOL_OUTPUT'));
+    const childPayload = JSON.parse(entries.get(`subsessions/${child.id}.json`)!.toString());
+    assert.equal(childPayload.info.parentID, info.id);
+    assert.deepEqual(childPayload.messages.map((message: any) => message.id), ['msg_child_checkpoint', 'msg_child_tail']);
+    assert.deepEqual(childPayload.messages[0].metadata, { recent: expectedChild[0].metadata.recent });
+    assert.ok(![...entries.keys()].some(name => name.startsWith('events/')));
+    const manifest = JSON.parse(entries.get('manifest.json')!.toString());
+    assert.equal(manifest.includeSubagents, true);
+    assert.equal(manifest.sessions.length, 2);
     const importer = new Importer(async () => client), imported = await importer.prepare(archive.path, fixture.project);
     await importer.start(imported.id);
     let result: any;
     for (let attempt = 0; attempt < 300; attempt++) {
       result = await importer.status(imported.id); if (!['running', 'prepared'].includes(result.state)) break; await new Promise(resolve => setTimeout(resolve, 20));
     }
-    assert.equal(result.state, 'ready', JSON.stringify(result)); assert.equal(result.sessions.length, 1);
+    assert.equal(result.state, 'ready', JSON.stringify(result)); assert.equal(result.sessions.length, 2);
     const id = result.sessions[0], context = await fixture.request(`/api/session/${id}/context`);
     const checkpoint = context.find((message: any) => message.type === 'compaction');
     assert.equal(checkpoint.summary, expected[0].summary);
@@ -58,5 +75,13 @@ test('Resume ZIP round-trip preserves native recent text, real pin objects and d
     assert.ok(instructions.some((entry: any) => entry.value.includes('PINNED: preserve all source files.')));
     assert.ok(!JSON.stringify(context).includes('Earlier visible conversation for consultation.'));
     assert.equal((await fixture.request('/api/session/ses_resume_source')).id, info.id);
+    const childID = result.sessions[1], restoredChild = await fixture.request(`/api/session/${childID}`);
+    assert.notEqual(childID, child.id);
+    assert.equal(restoredChild.parentID, id);
+    const childContext = await fixture.request(`/api/session/${childID}/context`);
+    assert.equal(childContext[0].metadata.recent, expectedChild[0].metadata.recent);
+    assert.equal(childContext.at(-1).text, 'Continue child work.');
+    const childInstructions = await fixture.request(`/api/experimental/session/${childID}/instructions/entries`);
+    assert.deepEqual(childInstructions.map((entry: any) => entry.value), ['Only the child should see this instruction.']);
   } finally { await fixture.close(); }
 });
