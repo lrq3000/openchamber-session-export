@@ -54,7 +54,7 @@ An older installation cannot gain the new plugin/navigation approvals through th
 
 1. Open **Session Export** on the right-hand rail, or choose **Export complete session** in a session's menu. On mobile, `panel.mobile: true` exposes the same controls in OpenChamber's workspace view; the host owns its presentation, without a separate limited mobile form or a desktop dialog-mode change.
 2. Check the displayed session title and ID. The panel follows the focused session; an explicitly clicked session-menu action selects its target.
-3. Choose **Complete** for the main transcript, descendant sessions and available logs, or **Resume snapshot** for the engine's effective compacted context, retained recent conversation, useful subsequent records, pins and captured session instructions. No new model summary is generated.
+3. Select **Include subagent sessions** to add the selected session's descendants, including nested and archived sessions. It is off by default and resets when you select a different session. Choose **Complete** for each included session's full transcript and available logs, or **Resume snapshot** for each included session's effective compacted context, retained recent conversation, useful subsequent records, pins and captured session instructions. No new model summary is generated.
 4. For Resume, optionally keep **earlier conversation for reference only**. This creates `history/conversation.md`, excludes old tool output and subagent history, and does not place that history back into active context. An older pinned message remains available and is added as a durable instruction when needed across the compaction boundary.
 5. Leave **Include referenced local files** OFF to avoid external-file inspection/copying. Otherwise, review the inventory and explicitly select files. Pinned/recent-context references are recommended, never automatically selected. Missing/refused files remain visible. Existing attachment bytes already embedded in messages remain part of the transcript.
 6. **Preview size** reports counts, known source bytes, a category breakdown and a clearly labelled ZIP estimate. **Measure exact ZIP size** actually compresses a prepared archive; exporting the unchanged selection reuses that ZIP. Source fingerprints are revalidated. An estimate is not an exact compressed or generated-Markdown size.
@@ -64,6 +64,8 @@ An older installation cannot gain the new plugin/navigation approvals through th
 The sandbox SDK exposes neither generic binary Save As nor a trustworthy local-client identity. Routing uses a deliberately conservative Windows/Electron user-agent and exactly one loopback ancestor origin; a host-reported phone/tablet always keeps the manual field even with a desktop-looking UA. This is a UX heuristic, not authentication. The Windows chooser is provided by the approved host service, not by an undocumented parent-window bridge. Choosing a destination is asynchronous and can outlast the ordinary twenty-second bridge deadline. A session change while a chooser is pending cancels that destination and prevents publication. Other in-progress actions retain their originally clicked target and label a result for a previously selected session.
 
 The native **Export Markdown** remains independent. **Export complete session** is an additive action, normally directly below it in the sidebar; the desktop header may interpose **Open in Mini Chat**, and other extensions can affect contributed-action ordering. The host exposes no placement contract; the extension does not patch the application or replace native export.
+
+Turning off **Include subagent sessions** skips separate descendant transcripts; it does not redact subagent results already recorded in the selected session. Resume can still be large if an included session has no reusable compaction.
 
 To collect external attachments, enable **Include referenced local files**, choose **Review files**, explicitly select available files, and choose **Create archive**. A target change resets inclusion to OFF. Only explicit attachment records, file tool content, Markdown image references and recognized generated/truncated-output artifacts are candidates; arbitrary filesystem paths in chat prose or tool arguments are not copy instructions. There is no directory crawl or remote download. Review the inventory carefully: an opt-in ZIP can contain private documents or generated images.
 
@@ -92,14 +94,14 @@ The importer adapts only copies. Unfinished assistants are sealed with an explic
 | Entry | Contents |
 | --- | --- |
 | `conversation.md` | Recorded message/content order, exposed reasoning, tool names/arguments/results/errors, unfamiliar content and separate descendant sections. |
-| `session.json` | Main session `info` and complete paginated projected `messages`, without dropping unfamiliar JSON fields. |
-| `subsessions/<id>.json` | The same projected snapshot for each descendant, including archived child sessions. |
+| `session.json` | Main session `info` and projected `messages` selected by the export mode. Complete captures all message pages without dropping unfamiliar JSON fields. |
+| `subsessions/<id>.json` | When enabled, the same export mode applied separately to each descendant, including archived child sessions. |
 | `events/<id>.jsonl` | Available durable events through the API's captured `log.synced` watermark; not provider wire traffic. |
 | `context/<id>/instructions.json` | Captured API-managed session instruction entries, including portable older pins where required. |
-| `context/<id>/effective.json` | Effective context evidence in Complete mode. Resume embeds its selected context in `session.json` instead. |
+| `context/<id>/effective.json` | Effective context evidence in Complete mode. Resume embeds each included session's selected context in its projected session JSON instead. |
 | `history/conversation.md` | Optional older main-conversation text for consultation only, never active import context. |
 | `assets/` | Only explicitly selected and successfully revalidated external regular files. |
-| `manifest.json` | Schema/version, capture times, sources, coverage warnings, file decisions and SHA-256 checksums of uncompressed entries other than the manifest itself. |
+| `manifest.json` | Schema/version, export mode and subagent scope, capture times, sources, coverage warnings, file decisions and SHA-256 checksums of uncompressed entries other than the manifest itself. |
 
 The writer uses `openchamber-session-export/2`; the importer explicitly accepts schema 1 with reduced coverage warnings. JSON is a projected snapshot, **not a byte-identical native transfer export**. Event logs and consultation history remain archive-only and are not replayed into SQLite or the internal event log. Unfamiliar message/content types fail preparation rather than being silently dropped; preservation of arbitrary unknown API fields during native import is not guaranteed. Provider-native checkpoint data stays opaque and may depend on the original provider/model.
 

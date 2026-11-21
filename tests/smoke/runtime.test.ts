@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { SessionSource } from '../../src/opencode.js';
+import { applyProfile } from '../../src/profiles.js';
 import { capture, materialize } from '../fixtures.js';
 import { nativeFixture } from '../native-fixture.js';
 
@@ -32,6 +33,12 @@ test('captures real OpenCode v2 projected reasoning and tools without a provider
     const messages = capture().sessions[0].messages.map(message => ({ ...message }));
     messages[1] = { ...messages[1], agent: 'build', model: { id: 'test', providerID: 'fixture' }, time: { created: 2, completed: 3 }, content: messages[1].content.filter((item: any) => item.type !== 'future-content').map((item: any) => item.type === 'tool' ? { ...item, time: { created: 2, completed: 3 } } : item) };
     await request('/api/experimental/session/import', { info: { ...info, id, title: 'Native export evidence' }, messages, location: { directory: project } });
+    const childID = `ses_${randomUUID().replaceAll('-', '')}`;
+    await request('/api/experimental/session/import', {
+      info: { ...info, id: childID, parentID: id, title: 'Native child evidence' },
+      location: { directory: project },
+      messages: [{ id: 'msg_native_child', type: 'user', text: 'Child-only text.', time: { created: 1 } }],
+    });
     // An isolated proxy mirrors OpenChamber's credential injection without adding a test-only credential path to production code.
     proxy = createServer(async (incoming, outgoing) => {
       try {
@@ -42,11 +49,20 @@ test('captures real OpenCode v2 projected reasoning and tools without a provider
       } catch { outgoing.destroy(); }
     });
     await new Promise<void>(resolve => proxy!.listen(0, '127.0.0.1', resolve));
-    const result = await materialize(await new SessionSource({ url: `http://127.0.0.1:${(proxy.address() as any).port}`, version }).capture({ sessionID: id, title: 'Native export evidence', directory: project }));
+    const source = new SessionSource({ url: `http://127.0.0.1:${(proxy.address() as any).port}`, version });
+    const target = { sessionID: id, title: 'Native export evidence', directory: project };
+    const result = await materialize(await source.capture(target));
+    assert.equal(result.sessions.length, 1);
     assert.equal(result.sessions[0].messages.length, 2);
     assert.equal(result.sessions[0].messages[1].content[0].type, 'reasoning');
     assert.equal(result.sessions[0].messages[1].content[1].state.input.path, 'a.ts');
     assert.equal(result.sessions[0].log.available, true, result.sessions[0].log.error ?? 'Native durable log unavailable');
+    const options = { profile: 'resume', includeSubagents: true } as const;
+    const resumed = await materialize(await applyProfile(await source.capture(target, options), options));
+    assert.deepEqual(resumed.sessions.map(session => session.info.id), [id, childID]);
+    assert.equal(resumed.sessions[1].info.parentID, id);
+    assert.equal(resumed.sessions[1].messages[0].text, 'Child-only text.');
+    assert.deepEqual(resumed.sessions.flatMap(session => session.events), []);
     assert.equal(providerCalls, 0);
     await writeFile(join(root, 'capture.json'), JSON.stringify(result, null, 2));
     console.log(`Native OpenCode ${version}; provider calls: ${providerCalls}; evidence: ${root}`);

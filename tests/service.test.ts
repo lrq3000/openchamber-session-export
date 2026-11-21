@@ -33,6 +33,8 @@ test('authenticates the service bridge and returns preparation jobs before slow 
     assert.ok(!JSON.stringify(ready).includes('fixture-secret'));
     assert.equal((await fetch(url + '/job?id=unknown', { headers })).status, 404);
     assert.equal((await fetch(url + '/prepare', { method: 'POST', headers, body: JSON.stringify({ target: { sessionID: '../../secret', directory: '/project' } }) })).status, 400);
+    assert.equal((await fetch(url + '/prepare', { method: 'POST', headers, body: JSON.stringify({ target: capture().target, includeSubagents: 'false' }) })).status, 400);
+    assert.equal(calls, 1, 'Reject malformed scope before opening a capture');
     const directory = await temporary('service-archive');
     const exported = await fetch(url + '/export', { method: 'POST', headers, body: JSON.stringify({ preparedID: ready.prepared.id, options: { outputDirectory: directory } }) });
     assert.equal(exported.status, 202);

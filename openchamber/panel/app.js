@@ -25,11 +25,11 @@ SOFTWARE.
 */
 "use strict";
 (() => {
-  // node_modules/@openchamber/sdk/dist/api-version.js
+  // ../../node_modules/@openchamber/sdk/dist/api-version.js
   var OPENCHAMBER_SDK_CHANNEL = "openchamber.sdk";
   var OPENCHAMBER_SDK_API_VERSION = 1;
 
-  // node_modules/@openchamber/sdk/dist/scrollbar-style.js
+  // ../../node_modules/@openchamber/sdk/dist/scrollbar-style.js
   var GUEST_SCROLLING_ATTRIBUTE = "data-oc-scrolling";
   var GUEST_SCROLLBAR_CSS = `
 :root {
@@ -89,15 +89,15 @@ SOFTWARE.
   }
   var GUEST_SCROLLBAR_SCRIPT = `(${installGuestScrollbarActivity.toString()})(document);`;
 
-  // node_modules/@openchamber/sdk/dist/workspace.js
+  // ../../node_modules/@openchamber/sdk/dist/workspace.js
   var GUEST_STORAGE_KEY_MAX = 128;
   var GUEST_STORAGE_VALUE_BYTES = 65536;
 
-  // node_modules/@openchamber/sdk/dist/shells.js
+  // ../../node_modules/@openchamber/sdk/dist/shells.js
   var GUEST_SHELL_ID_MAX = 128;
   var GUEST_SHELL_OUTPUT_TAIL_MAX = 65536;
 
-  // node_modules/@openchamber/sdk/dist/status-controls.js
+  // ../../node_modules/@openchamber/sdk/dist/status-controls.js
   var GUEST_STATUS_CONTROLS_MAX = 4;
   var GUEST_STATUS_CONTROL_ID = /^[a-z][a-z0-9-]{0,39}$/;
   var GUEST_STATUS_CONTROL_LABEL_MAX = 60;
@@ -140,12 +140,12 @@ SOFTWARE.
     return true;
   };
 
-  // node_modules/@openchamber/sdk/dist/manifest.js
+  // ../../node_modules/@openchamber/sdk/dist/manifest.js
   var GUEST_PROVIDER_LOGO_BYTES_MAX = 1024 * 1024;
   var TRACKER_URL_TOKENS = ["{id}", "{segment}", "{segments+}"];
   var TRACKER_URL_TOKEN_SET = new Set(TRACKER_URL_TOKENS);
 
-  // node_modules/@openchamber/sdk/dist/session-events.js
+  // ../../node_modules/@openchamber/sdk/dist/session-events.js
   var GUEST_SESSION_EVENT_TYPES = [
     "turn-finished",
     "turn-failed",
@@ -159,11 +159,11 @@ SOFTWARE.
   var SESSION_EVENTS_IDLE_MS = 10 * 6e4;
   var EVENT_TYPES = new Set(GUEST_SESSION_EVENT_TYPES);
 
-  // node_modules/@openchamber/sdk/dist/service-host.js
+  // ../../node_modules/@openchamber/sdk/dist/service-host.js
   var SERVICE_SCHEDULE_IDLE_MS = 10 * 6e4;
   var MENTIONS_IDLE_MS = 10 * 6e4;
 
-  // node_modules/@openchamber/sdk/dist/file-editor.js
+  // ../../node_modules/@openchamber/sdk/dist/file-editor.js
   var GUEST_FILE_EDITOR_CONTENT_MAX = 2e7;
   var GUEST_FILE_EDITOR_VERSION_MAX = 256;
   var fileEditorPayloadSize = (value) => "bytes" in value ? value.bytes.byteLength : value.content.length;
@@ -182,7 +182,7 @@ SOFTWARE.
     return true;
   };
 
-  // node_modules/@openchamber/sdk/dist/popover.js
+  // ../../node_modules/@openchamber/sdk/dist/popover.js
   var GUEST_POPOVER_ID = /^[A-Za-z0-9_-]{1,80}$/;
   var GUEST_POPOVER_COORDINATE_MAX = 1e5;
   var GUEST_POPOVER_WIDTH_MIN = 160;
@@ -225,7 +225,7 @@ SOFTWARE.
     }
   };
 
-  // node_modules/@openchamber/sdk/dist/contract.js
+  // ../../node_modules/@openchamber/sdk/dist/contract.js
   var GUEST_BLOCK_ANSWER_MAX = 2e3;
   var GUEST_FILE_STAT_KINDS = ["file", "directory", "other", "missing"];
   var isStartSessionResult = (value) => Boolean(value && "sessionId" in value);
@@ -443,7 +443,7 @@ SOFTWARE.
     return wire;
   };
 
-  // node_modules/@openchamber/sdk/dist/host.js
+  // ../../node_modules/@openchamber/sdk/dist/host.js
   var isKeyEvent = (event) => "key" in event && "metaKey" in event && "ctrlKey" in event;
   var isSaveShortcut = (event) => (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "s";
   var HostRequestError = class extends Error {
@@ -1435,7 +1435,7 @@ SOFTWARE.
     };
   };
 
-  // node_modules/@openchamber/sdk/dist/service-providers.js
+  // ../../node_modules/@openchamber/sdk/dist/service-providers.js
   var BROWSER_CONTROL_ACTIONS = [
     "browser.open",
     "browser.snapshot",
@@ -1457,11 +1457,11 @@ SOFTWARE.
   var TRACKER_PROVIDER_IDLE_MS = 10 * 6e4;
   var QUOTA_PROVIDER_IDLE_MS = 10 * 6e4;
 
-  // node_modules/@openchamber/sdk/dist/service-surface.js
+  // ../../node_modules/@openchamber/sdk/dist/service-surface.js
   var SURFACE_CONTROLLERS = ["none", "agent", "user"];
   var CONTROLLERS = new Set(SURFACE_CONTROLLERS);
 
-  // node_modules/@openchamber/sdk/dist/ui/theme.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/theme.js
   var TOKEN_VARS = [
     ["--oc-bg", "background"],
     ["--oc-elevated", "elevated"],
@@ -1551,7 +1551,7 @@ SOFTWARE.
     }
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/style.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/style.js
   var OC_ALIAS = {
     "surface-background": "bg",
     "surface-elevated": "elevated",
@@ -1862,7 +1862,7 @@ ${GUEST_SCROLLBAR_CSS}
 ${UI_SIZE_CSS}
 ${GUEST_UI_LOOK_CSS}`;
 
-  // node_modules/@openchamber/sdk/dist/ui/dom.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/dom.js
   var STYLE_ID = "oc-sdk-ui-style";
   var clearNode = (node) => {
     while (node.firstChild) {
@@ -1921,7 +1921,7 @@ ${GUEST_UI_LOOK_CSS}`;
     };
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/button.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/button.js
   var ring = () => {
     const spinner = document.createElement("span");
     spinner.className = "oc-sdk-spinner-ring";
@@ -1969,7 +1969,7 @@ ${GUEST_UI_LOOK_CSS}`;
     };
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/field.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/field.js
   var mountTextField = (root, initial) => {
     ensureStyle(UI_CSS);
     let props = initial;
@@ -2017,7 +2017,7 @@ ${GUEST_UI_LOOK_CSS}`;
     };
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/icons.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/icons.js
   var SVG_NS = "http://www.w3.org/2000/svg";
   var ICON_PATH = {
     search: "M18.031 16.617l4.283 4.282-1.415 1.415-4.282-4.283A8.96 8.96 0 0 1 11 20c-4.968 0-9-4.032-9-9s4.032-9 9-9 9 4.032 9 9a8.96 8.96 0 0 1-1.969 5.617zm-2.006-.742A6.977 6.977 0 0 0 18 11c0-3.868-3.133-7-7-7-3.868 0-7 3.132-7 7 0 3.867 3.132 7 7 7a6.977 6.977 0 0 0 4.875-1.975l.15-.15z",
@@ -2043,7 +2043,7 @@ ${GUEST_UI_LOOK_CSS}`;
     return node;
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/navigation.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/navigation.js
   var navigationKey = (event, axis = "vertical") => {
     const [next, previous] = axis === "vertical" ? ["ArrowDown", "ArrowUp"] : ["ArrowRight", "ArrowLeft"];
     if (event.key === next || event.ctrlKey && event.key.toLowerCase() === "n")
@@ -2077,7 +2077,7 @@ ${GUEST_UI_LOOK_CSS}`;
     return target?.id ?? null;
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/option.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/option.js
   var optionId = (uid, id) => `${uid}-${id ?? ""}`;
   var createOption = (uid, role, spec, on) => {
     const node = button("oc-sdk-option");
@@ -2118,7 +2118,7 @@ ${GUEST_UI_LOOK_CSS}`;
     container.querySelector('[data-active="true"]')?.scrollIntoView({ block: "nearest" });
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/popup.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/popup.js
   var placePopup = (popup, trigger) => {
     const rect = trigger.getBoundingClientRect();
     popup.style.minWidth = `${Math.round(rect.width)}px`;
@@ -2157,7 +2157,7 @@ ${GUEST_UI_LOOK_CSS}`;
     };
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/select.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/select.js
   var filterSelectOptions = (options, query) => {
     const needle = query.trim().toLowerCase();
     if (!needle) {
@@ -2314,7 +2314,7 @@ ${GUEST_UI_LOOK_CSS}`;
     };
   };
 
-  // node_modules/@openchamber/sdk/dist/ui/checkbox.js
+  // ../../node_modules/@openchamber/sdk/dist/ui/checkbox.js
   var mountToggle = (root, initial, role) => {
     ensureStyle(UI_CSS);
     let props = initial;
@@ -2617,7 +2617,7 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
       document.querySelector("#app").innerHTML = `
       <header><h1>Session Export</h1><p class="muted">Archive the selected conversation.</p></header>
       <section class="target" aria-label="Selected session"><strong id="session-title">No session selected</strong><code id="session-id"></code></section>
-      <div id="profile-control"></div><div id="history-control"></div>
+      <div id="subagent-control"></div><div id="profile-control"></div><div id="history-control"></div>
       <p id="profile-description" class="note"></p>
       <p class="muted small">If the bundled plugin is unavailable, Complete export uses the host read bridge with its response/log limits. Failed transcript reads stop the export; missing coverage is reported.</p>
       <div id="include-files"></div><p class="muted small">External files are not inspected unless enabled. Embedded data already stored in the transcript remains in JSON.</p>
@@ -2635,7 +2635,12 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
         this.clearPreview();
         this.refresh();
       } });
-      this.historyControl = mountCheckbox(this.element("history-control"), { label: "Keep earlier conversation for reference only", checked: false, description: "Earlier main-conversation text stays outside active context. Old tool output and sub-agent history are excluded.", onChange: (checked) => {
+      this.subagentControl = mountCheckbox(this.element("subagent-control"), { label: "Include subagent sessions", checked: false, description: "Apply the selected export mode to nested and archived subagent sessions too.", onChange: (checked) => {
+        this.includeSubagents = checked;
+        this.clearPreview();
+        this.refresh();
+      } });
+      this.historyControl = mountCheckbox(this.element("history-control"), { label: "Keep earlier conversation for reference only", checked: false, description: "Only earlier main-conversation text is added for reference; old tool output is excluded.", onChange: (checked) => {
         this.retainHistory = checked;
         this.clearPreview();
         this.refresh();
@@ -2707,8 +2712,10 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
     nativeDestination = isLocalDesktop(navigator.userAgent, Array.from(location.ancestorOrigins ?? []));
     destinationJob = "";
     profile = "complete";
+    includeSubagents = false;
     retainHistory = false;
     profileControl;
+    subagentControl;
     historyControl;
     estimate;
     exact;
@@ -2733,6 +2740,7 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
         });
         this.epoch++;
         this.includeFiles = false;
+        this.includeSubagents = false;
         this.clearPreview();
         this.resultPath = "";
         this.element("result").hidden = true;
@@ -2756,7 +2764,8 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
       this.more.update({ disabled: this.busy || this.next === null });
       this.output.update({ disabled: this.busy, value: this.outputDirectory });
       this.profileControl.update({ value: this.profile, disabled: this.busy });
-      this.text("profile-description", this.profile === "resume" ? "Resume keeps the engine\u2019s effective checkpoint, retained recent context, subsequent exchanges, pins and captured session instructions. Older tool output and sub-agent history are excluded. No new summary is generated." : "Complete keeps readable Markdown, projected JSON, sub-sessions and available durable events. Only host-exposed reasoning can be exported.");
+      this.subagentControl.update({ checked: this.includeSubagents, disabled: this.busy || !this.session });
+      this.text("profile-description", this.profile === "resume" ? "Resume keeps each included session\u2019s effective checkpoint, retained recent context, subsequent exchanges, pins and captured instructions. Tool output retained by the engine can be included; historical event logs are excluded. No new summary is generated." : "Complete keeps each included session\u2019s full transcript in readable Markdown and projected JSON, plus available durable events. Only host-exposed reasoning can be exported.");
       this.historyControl.update({ checked: this.retainHistory, disabled: this.busy });
       this.element("history-control").hidden = this.profile !== "resume";
       for (const control of [this.estimate, this.exact]) control.update({ disabled: this.busy || !this.session || !this.directory });
@@ -2807,6 +2816,9 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
         await new Promise((resolve) => setTimeout(resolve, 250));
       }
     }
+    requestPreparation(target, inspectFiles) {
+      return this.request("/prepare", "POST", { target, inspectFiles, profile: this.profile, includeSubagents: this.includeSubagents, retainHistory: this.profile === "resume" && this.retainHistory });
+    }
     async prepare() {
       if (this.busy) return;
       if (this.preview) {
@@ -2828,7 +2840,7 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
       this.clearPreview();
       this.begin();
       try {
-        const started = await this.request("/prepare", "POST", { target, inspectFiles: includeFiles, profile: this.profile, retainHistory: this.profile === "resume" && this.retainHistory });
+        const started = await this.requestPreparation(target, includeFiles);
         this.activeJob = { id: started.id, transfer: false };
         const ready = await this.poll(started.id);
         if (includeFiles) {
@@ -2941,7 +2953,7 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
       this.begin();
       try {
         if (!this.preview) {
-          const started2 = await this.request("/prepare", "POST", { target: this.target(), inspectFiles: this.includeFiles, profile: this.profile, retainHistory: this.profile === "resume" && this.retainHistory });
+          const started2 = await this.requestPreparation(this.target(), this.includeFiles);
           this.activeJob = { id: started2.id, transfer: false };
           const ready = await this.poll(started2.id);
           if (epoch !== this.epoch) return;

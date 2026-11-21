@@ -34,12 +34,13 @@ export function createService(token: string, source: { capture(target: ExportTar
         if (!value || typeof value.sessionID !== 'string' || !/^ses_[a-zA-Z0-9_-]{1,200}$/.test(value.sessionID) || typeof value.directory !== 'string' || !value.directory || value.directory.length > 4096 || value.directory.includes('\0')) throw new Error('Choose a valid session and directory.');
         const target: ExportTarget = { sessionID: value.sessionID, directory: value.directory, title: typeof value.title === 'string' ? value.title.slice(0, 500) : undefined };
         if (input.inspectFiles !== undefined && typeof input.inspectFiles !== 'boolean') throw new Error('Invalid file-inventory option.');
+        if (input.includeSubagents !== undefined && typeof input.includeSubagents !== 'boolean') throw new Error('Invalid subagent inclusion option.');
         if (input.profile !== undefined && !['complete', 'resume'].includes(input.profile) || input.retainHistory !== undefined && typeof input.retainHistory !== 'boolean') throw new Error('Invalid export profile.');
         const job: JobStatus = { id: randomUUID(), target, state: 'running', progress: 'Reading session evidence' }, controller = new AbortController();
         if (jobs.size >= 32) jobs.delete(jobs.keys().next().value!);
         jobs.set(job.id, job);
         controllers.set(job.id, controller);
-        void exporter.prepare(target, input.inspectFiles === true, { profile: input.profile, retainHistory: input.retainHistory, signal: controller.signal }).then(preview => {
+        void exporter.prepare(target, input.inspectFiles === true, { profile: input.profile, retainHistory: input.retainHistory, includeSubagents: input.includeSubagents === true, signal: controller.signal }).then(preview => {
           Object.assign(job, { state: 'ready', progress: 'Evidence prepared', prepared: preview });
         }).catch(error => { Object.assign(job, { state: 'failed', progress: controller.signal.aborted ? 'Preparation cancelled' : 'Preparation failed', error: safeError(error) }); }).finally(() => controllers.delete(job.id));
         return respond(response, 202, job);

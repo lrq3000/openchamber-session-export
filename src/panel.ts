@@ -28,8 +28,10 @@ class ExportPanel {
   private nativeDestination = isLocalDesktop(navigator.userAgent, Array.from(location.ancestorOrigins ?? []));
   private destinationJob = '';
   private profile: ExportProfile = 'complete';
+  private includeSubagents = false;
   private retainHistory = false;
   private profileControl: SelectHandle;
+  private subagentControl: CheckboxHandle;
   private historyControl: CheckboxHandle;
   private estimate: ButtonHandle;
   private exact: ButtonHandle;
@@ -47,7 +49,7 @@ class ExportPanel {
     document.querySelector('#app')!.innerHTML = `
       <header><h1>Session Export</h1><p class="muted">Archive the selected conversation.</p></header>
       <section class="target" aria-label="Selected session"><strong id="session-title">No session selected</strong><code id="session-id"></code></section>
-      <div id="profile-control"></div><div id="history-control"></div>
+      <div id="subagent-control"></div><div id="profile-control"></div><div id="history-control"></div>
       <p id="profile-description" class="note"></p>
       <p class="muted small">If the bundled plugin is unavailable, Complete export uses the host read bridge with its response/log limits. Failed transcript reads stop the export; missing coverage is reported.</p>
       <div id="include-files"></div><p class="muted small">External files are not inspected unless enabled. Embedded data already stored in the transcript remains in JSON.</p>
@@ -61,7 +63,8 @@ class ExportPanel {
       <footer class="muted small">Archives are saved on the selected OpenChamber server. They may contain private information. An ordinary ZIP is not encrypted.</footer>
       <section id="import-panel"></section>`;
     this.profileControl = mountSelect(this.element('profile-control'), { label: 'Export mode', value: 'complete', options: [{ id: 'complete', label: 'Complete' }, { id: 'resume', label: 'Resume snapshot' }], onChange: value => { this.profile = value as ExportProfile; this.clearPreview(); this.refresh(); } });
-    this.historyControl = mountCheckbox(this.element('history-control'), { label: 'Keep earlier conversation for reference only', checked: false, description: 'Earlier main-conversation text stays outside active context. Old tool output and sub-agent history are excluded.', onChange: checked => { this.retainHistory = checked; this.clearPreview(); this.refresh(); } });
+    this.subagentControl = mountCheckbox(this.element('subagent-control'), { label: 'Include subagent sessions', checked: false, description: 'Apply the selected export mode to nested and archived subagent sessions too.', onChange: checked => { this.includeSubagents = checked; this.clearPreview(); this.refresh(); } });
+    this.historyControl = mountCheckbox(this.element('history-control'), { label: 'Keep earlier conversation for reference only', checked: false, description: 'Only earlier main-conversation text is added for reference; old tool output is excluded.', onChange: checked => { this.retainHistory = checked; this.clearPreview(); this.refresh(); } });
     this.estimate = mountButton(this.element('estimate-button'), { label: 'Preview size', variant: 'outline', onClick: () => void this.previewSize(false) });
     this.exact = mountButton(this.element('exact-button'), { label: 'Measure exact ZIP size', variant: 'outline', onClick: () => void this.previewSize(true) });
     this.cancel = mountButton(this.element('cancel-button'), { label: 'Cancel', variant: 'outline', disabled: true, onClick: () => void this.cancelJob() });
@@ -102,7 +105,7 @@ class ExportPanel {
   private context(directory: string, session: SessionSnapshot | null): void {
     if (directory !== this.directory || session?.id !== this.session?.id) {
       if (this.destinationJob) void this.request('/destination/cancel', 'POST', { id: this.destinationJob }).catch(() => {});
-      this.epoch++; this.includeFiles = false; this.clearPreview(); this.resultPath = '';
+      this.epoch++; this.includeFiles = false; this.includeSubagents = false; this.clearPreview(); this.resultPath = '';
       this.element('result').hidden = true;
       for (const id of ['status', 'error', 'warnings']) this.text(id, '');
     }
@@ -124,9 +127,10 @@ class ExportPanel {
     this.output.update({ disabled: this.busy, value: this.outputDirectory });
     // SDK selects are controlled: onChange reports a choice but does not retain its value.
     this.profileControl.update({ value: this.profile, disabled: this.busy });
+    this.subagentControl.update({ checked: this.includeSubagents, disabled: this.busy || !this.session });
     this.text('profile-description', this.profile === 'resume'
-      ? 'Resume keeps the engine’s effective checkpoint, retained recent context, subsequent exchanges, pins and captured session instructions. Older tool output and sub-agent history are excluded. No new summary is generated.'
-      : 'Complete keeps readable Markdown, projected JSON, sub-sessions and available durable events. Only host-exposed reasoning can be exported.');
+      ? 'Resume keeps each included session’s effective checkpoint, retained recent context, subsequent exchanges, pins and captured instructions. Tool output retained by the engine can be included; historical event logs are excluded. No new summary is generated.'
+      : 'Complete keeps each included session’s full transcript in readable Markdown and projected JSON, plus available durable events. Only host-exposed reasoning can be exported.');
     this.historyControl.update({ checked: this.retainHistory, disabled: this.busy }); this.element('history-control').hidden = this.profile !== 'resume';
     for (const control of [this.estimate, this.exact]) control.update({ disabled: this.busy || !this.session || !this.directory });
     this.cancel.update({ disabled: !this.busy });
@@ -167,6 +171,10 @@ class ExportPanel {
     }
   }
 
+  private requestPreparation(target: ExportTarget, inspectFiles: boolean): Promise<RecordData> {
+    return this.request('/prepare', 'POST', { target, inspectFiles, profile: this.profile, includeSubagents: this.includeSubagents, retainHistory: this.profile === 'resume' && this.retainHistory });
+  }
+
   private async prepare(): Promise<void> {
     if (this.busy) return;
     if (this.preview) {
@@ -179,7 +187,7 @@ class ExportPanel {
     const target = this.target(), epoch = this.epoch, includeFiles = this.includeFiles;
     this.clearPreview(); this.begin();
     try {
-      const started = await this.request('/prepare', 'POST', { target, inspectFiles: includeFiles, profile: this.profile, retainHistory: this.profile === 'resume' && this.retainHistory });
+      const started = await this.requestPreparation(target, includeFiles);
       this.activeJob = { id: started.id, transfer: false };
       const ready = await this.poll(started.id);
       if (includeFiles) {
@@ -258,7 +266,7 @@ class ExportPanel {
     const epoch = this.epoch; this.begin();
     try {
       if (!this.preview) {
-        const started = await this.request('/prepare', 'POST', { target: this.target(), inspectFiles: this.includeFiles, profile: this.profile, retainHistory: this.profile === 'resume' && this.retainHistory });
+        const started = await this.requestPreparation(this.target(), this.includeFiles);
         this.activeJob = { id: started.id, transfer: false };
         const ready = await this.poll(started.id);
         if (epoch !== this.epoch) return;
