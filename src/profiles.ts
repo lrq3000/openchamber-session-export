@@ -18,7 +18,12 @@ export function pinnedMessageIDs(info: RecordData): Set<string> {
     if (depth > 8) throw new Error('Pinned-message metadata exceeds its supported depth.');
     if (typeof value === 'string' && value.startsWith('msg_')) result.add(value);
     else if (Array.isArray(value)) value.forEach(item => visit(item, depth + 1));
-    else if (value && typeof value === 'object') for (const [key, item] of Object.entries(value)) { if (key.startsWith('msg_')) result.add(key); visit(item, depth + 1); }
+    else if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      // OpenCode inherits parent metadata on child creation. Keep foreign pin references in info, but only assemble pins from the owning transcript. Legacy pins without an owner are treated as local.
+      if (typeof record.id === 'string' && typeof record.sessionID === 'string' && record.sessionID && record.sessionID !== info.id) return;
+      for (const [key, item] of Object.entries(record)) { if (key.startsWith('msg_')) result.add(key); visit(item, depth + 1); }
+    }
   };
   visit(pins); return result;
 }

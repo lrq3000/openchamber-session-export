@@ -2765,7 +2765,7 @@ ${preview.sessionCount} session(s), ${preview.messageCount} message(s), ${previe
       this.output.update({ disabled: this.busy, value: this.outputDirectory });
       this.profileControl.update({ value: this.profile, disabled: this.busy });
       this.subagentControl.update({ checked: this.includeSubagents, disabled: this.busy || !this.session });
-      this.text("profile-description", this.profile === "resume" ? "Resume keeps each included session\u2019s effective checkpoint, retained recent context, subsequent exchanges, pins and captured instructions. Older tool output and historical events are excluded. No new summary is generated." : "Complete keeps each included session\u2019s full transcript in readable Markdown and projected JSON, plus available durable events. Only host-exposed reasoning can be exported.");
+      this.text("profile-description", this.profile === "resume" ? "Resume keeps each included session\u2019s effective checkpoint, retained recent context, subsequent exchanges, pins and captured instructions. Tool output retained by the engine can be included; historical event logs are excluded. No new summary is generated." : "Complete keeps each included session\u2019s full transcript in readable Markdown and projected JSON, plus available durable events. Only host-exposed reasoning can be exported.");
       this.historyControl.update({ checked: this.retainHistory, disabled: this.busy });
       this.element("history-control").hidden = this.profile !== "resume";
       for (const control of [this.estimate, this.exact]) control.update({ disabled: this.busy || !this.session || !this.directory });

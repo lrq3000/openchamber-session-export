@@ -5522,6 +5522,8 @@ var SessionSource = class _SessionSource {
       const key = (0, import_node_crypto4.createHash)("sha256").update(id).digest("hex").slice(0, 24), path = `/api/session/${encodeURIComponent(id)}`;
       const before = await this.document(path, {}, store), root = await this.bodyPath(before);
       if (await before.scalar([...root, "id"]) !== id) throw new Error("The server returned a different session identity.");
+      const parentID = await before.scalar([...root, "parentID"]);
+      if (queued.parentID !== void 0 && parentID !== queued.parentID) throw new Error("The server returned a descendant with a different parent. Prepare the export again after the session tree settles.");
       if (id === target.sessionID && !samePath(String(await before.scalar([...root, "location", "directory"]) ?? ""), target.directory)) throw new Error("The focused session directory does not match this OpenChamber server.");
       const infoPath = (0, import_node_path4.join)(store.root, `info-${key}.json`), messagesPath = (0, import_node_path4.join)(store.root, `messages-${key}.json`), messageIndex = `messages-${key}`;
       await this.write(before.json(root), infoPath);
@@ -5539,11 +5541,11 @@ var SessionSource = class _SessionSource {
         yield "]";
       }
       await this.write(messages(), messagesPath);
-      for (const archived of includeSubagents ? ["false", "true"] : []) {
-        for await (const child of this.pages("/api/session", { parentID: id, archived, order: "asc", limit: "100" }, store, `child-${key}-${archived}`)) {
+      if (includeSubagents) {
+        for await (const child of this.pages("/api/session", { parentID: id, order: "asc", limit: "100" }, store, `child-${key}`)) {
           const childID = await child.scalar(["id"]);
           if (typeof childID !== "string" || !/^ses_[a-zA-Z0-9_-]{1,200}$/.test(childID)) throw new Error("Invalid descendant session identity.");
-          await store.append("queue", { id: childID });
+          await store.append("queue", { id: childID, parentID: id });
         }
       }
       const after = await this.document(path, {}, store), afterRoot = await this.bodyPath(after);
@@ -5552,7 +5554,6 @@ var SessionSource = class _SessionSource {
       const activity = active ? activityKind === "object" || activityKind === "array" || Boolean(await active.scalar([...activeRoot, id])) : null;
       if (activity || changed) await warn(`${id} was active or changed during capture; this is a non-atomic snapshot.`);
       const record = { id, title: String(await before.scalar([...root, "title"]) ?? id), infoPath, messagesPath, messageIndex, messageCount, active: activity, changed, log: { available: false } };
-      const parentID = await before.scalar([...root, "parentID"]);
       if (typeof parentID === "string") record.parentID = parentID;
       await store.append("core-sessions", record);
       snapshot.sessionCount++;
@@ -6192,9 +6193,13 @@ function pinnedMessageIDs(info) {
     if (depth > 8) throw new Error("Pinned-message metadata exceeds its supported depth.");
     if (typeof value === "string" && value.startsWith("msg_")) result.add(value);
     else if (Array.isArray(value)) value.forEach((item) => visit(item, depth + 1));
-    else if (value && typeof value === "object") for (const [key, item] of Object.entries(value)) {
-      if (key.startsWith("msg_")) result.add(key);
-      visit(item, depth + 1);
+    else if (value && typeof value === "object") {
+      const record = value;
+      if (typeof record.id === "string" && typeof record.sessionID === "string" && record.sessionID && record.sessionID !== info.id) return;
+      for (const [key, item] of Object.entries(record)) {
+        if (key.startsWith("msg_")) result.add(key);
+        visit(item, depth + 1);
+      }
     }
   };
   visit(pins);

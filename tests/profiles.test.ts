@@ -20,7 +20,7 @@ test('resume snapshots preserve native recent text and pins while keeping consul
   const childOld = { id: 'msg_child_old', type: 'user', text: 'Old child text must not be exported.' };
   const childCheckpoint = { id: 'msg_child_checkpoint', type: 'compaction', status: 'completed', metadata: { keepID: 'msg_child_old', recent: 'Child context, not the root context.' } };
   const childTail = { id: 'msg_child_tail', type: 'user', text: 'Follow-up for the child.' };
-  input.sessions.push({ ...input.sessions[0], info: { id: 'ses_child', parentID: 'ses_root' }, messages: [childOld, childCheckpoint, childTail] });
+  input.sessions.push({ ...input.sessions[0], info: { id: 'ses_child', parentID: 'ses_root', metadata: input.sessions[0].info.metadata }, messages: [childOld, childCheckpoint, childTail] });
   const snapshot = await diskCapture(input), store = new CaptureStore(snapshot.root);
   const records = (await store.page<SessionRecord>('sessions')).records, root = records[0];
   root.contextPath = join(snapshot.root, 'effective.json'); root.instructionsPath = join(snapshot.root, 'instructions.json');
@@ -58,4 +58,16 @@ test('resume snapshots preserve native recent text and pins while keeping consul
 
 test('resume snapshots fail closed without effective context rather than guessing a timestamp cut', async () => {
   await assert.rejects(applyProfile(await diskCapture(), { profile: 'resume' }), /effective context/);
+});
+
+test('resume still rejects a missing pin owned by the captured session', async () => {
+  const input = capture();
+  input.sessions[0].info.metadata = { openchamber: { context_obligatory_messages: [{ id: 'msg_missing', createdAt: 1, role: 'user', sessionID: 'ses_root' }] } };
+  const snapshot = await diskCapture(input), store = new CaptureStore(snapshot.root);
+  const [record] = (await store.page<SessionRecord>('sessions')).records;
+  record.contextPath = join(snapshot.root, 'effective.json');
+  record.instructionsPath = join(snapshot.root, 'instructions.json');
+  await writeFile(record.contextPath, '[]'); await writeFile(record.instructionsPath, '[]');
+  await writeFile(store.file('sessions'), JSON.stringify(record) + '\n');
+  await assert.rejects(applyProfile(snapshot, { profile: 'resume' }), /pinned messages could not be captured/);
 });

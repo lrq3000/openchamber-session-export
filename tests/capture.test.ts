@@ -34,7 +34,7 @@ function route(url: URL): unknown {
     if (url.pathname.includes('ses_nested')) return { data: [{ id: 'msg_nested_user', type: 'user', text: 'Nested evidence' }], cursor: {} };
     return url.searchParams.has('cursor') ? { data: [fixture.messages[1]], cursor: {} } : { data: [fixture.messages[0]], cursor: { next: 'page2' } };
   }
-  if (url.pathname === '/api/session') return { data: url.searchParams.get('parentID') === 'ses_root' && url.searchParams.get('archived') === 'true' ? [{ id: 'ses_child' }] : [], cursor: {} };
+  if (url.pathname === '/api/session') return { data: url.searchParams.get('parentID') === 'ses_root' && url.searchParams.get('archived') !== 'false' ? [{ id: 'ses_child' }] : [], cursor: {} };
   if (url.pathname.endsWith('/log')) return 'data: {"type":"session.created","seq":1}\n\ndata: {"type":"log.synced","aggregateID":"ses_root","seq":5}\n\n';
 }
 
@@ -56,18 +56,29 @@ for (const profile of ['complete', 'resume'] as const) {
   for (const includeSubagents of [undefined, false, true]) {
     test(`${profile} capture with includeSubagents=${includeSubagents} reads only sessions in scope`, async () => {
       const server = await fixtureServer(url => url.pathname === '/api/session' &&
-        url.searchParams.get('parentID') === 'ses_child' && url.searchParams.get('archived') === 'false'
+        url.searchParams.get('parentID') === 'ses_child' && url.searchParams.get('archived') !== 'true'
         ? { data: [{ id: 'ses_nested' }], cursor: {} } : route(url));
       try {
         const result = await materialize(await new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target, { profile, includeSubagents }));
         assert.deepEqual(result.sessions.map(session => session.info.id), includeSubagents ? ['ses_root', 'ses_child', 'ses_nested'] : ['ses_root']);
-        assert.equal(server.calls.some(call => call.includes('parentID=')), Boolean(includeSubagents));
+        const listings = server.calls.filter(call => call.includes('parentID='));
+        assert.equal(listings.length, includeSubagents ? 3 : 0, 'Use one listing per parent, not separate archive-state passes');
+        assert.ok(listings.every(call => !call.includes('archived=')));
         assert.equal(server.calls.some(call => call.includes('ses_child')), Boolean(includeSubagents));
         assert.equal(server.calls.some(call => call.endsWith('/log?follow=false')), profile === 'complete');
       } finally { await server.close(); }
     });
   }
 }
+
+test('refuses an unrelated session from a descendant listing before reading its transcript', async () => {
+  const server = await fixtureServer(url => url.pathname === '/api/session/ses_child'
+    ? { data: { id: 'ses_child', parentID: 'ses_other' } } : route(url));
+  try {
+    await assert.rejects(new SessionSource({ url: server.url, version: '2.2.5' }).capture(capture().target, { includeSubagents: true }), /parent/i);
+    assert.ok(server.calls.every(call => !call.includes('/ses_child/message')));
+  } finally { await server.close(); }
+});
 
 test('fails closed on cursor loops and never silently returns a partial transcript', async () => {
   const server = await fixtureServer(url => url.pathname.endsWith('/message') ? { data: [{ id: 'new', type: 'user', text: 'x' }], cursor: { next: 'loop' } } : route(url));

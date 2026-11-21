@@ -31,13 +31,15 @@ export class SessionSource {
     try { active = await this.document('/api/session/active', {}, store); activeRoot = await this.bodyPath(active); }
     catch { await warn('Session activity could not be checked; the capture may be non-atomic.'); }
     await store.append('queue', { id: target.sessionID });
-    for await (const queued of store.records<{ id: string }>('queue')) {
+    for await (const queued of store.records<{ id: string; parentID?: string }>('queue')) {
       this.signal?.throwIfAborted();
       const id = queued.id;
       if (!await store.claim('sessions', id)) throw new Error('A cycle or duplicate descendant was found. Retry after the session tree settles.');
       const key = createHash('sha256').update(id).digest('hex').slice(0, 24), path = `/api/session/${encodeURIComponent(id)}`;
       const before = await this.document(path, {}, store), root = await this.bodyPath(before);
       if (await before.scalar([...root, 'id']) !== id) throw new Error('The server returned a different session identity.');
+      const parentID = await before.scalar([...root, 'parentID']);
+      if (queued.parentID !== undefined && parentID !== queued.parentID) throw new Error('The server returned a descendant with a different parent. Prepare the export again after the session tree settles.');
       if (id === target.sessionID && !samePath(String(await before.scalar([...root, 'location', 'directory']) ?? ''), target.directory)) throw new Error('The focused session directory does not match this OpenChamber server.');
       const infoPath = join(store.root, `info-${key}.json`), messagesPath = join(store.root, `messages-${key}.json`), messageIndex = `messages-${key}`;
       await this.write(before.json(root), infoPath);
@@ -55,12 +57,12 @@ export class SessionSource {
         yield ']';
       }
       await this.write(messages(), messagesPath);
-      // Gate traversal before reading descendant evidence, not just before writing the archive.
-      for (const archived of includeSubagents ? ['false', 'true'] : []) {
-        for await (const child of this.pages('/api/session', { parentID: id, archived, order: 'asc', limit: '100' }, store, `child-${key}-${archived}`)) {
+      // Omit the archive filter so a child's state change cannot move it between two separate queries.
+      if (includeSubagents) {
+        for await (const child of this.pages('/api/session', { parentID: id, order: 'asc', limit: '100' }, store, `child-${key}`)) {
           const childID = await child.scalar(['id']);
           if (typeof childID !== 'string' || !/^ses_[a-zA-Z0-9_-]{1,200}$/.test(childID)) throw new Error('Invalid descendant session identity.');
-          await store.append('queue', { id: childID });
+          await store.append('queue', { id: childID, parentID: id });
         }
       }
       const after = await this.document(path, {}, store), afterRoot = await this.bodyPath(after);
@@ -69,7 +71,7 @@ export class SessionSource {
       const activity = active ? activityKind === 'object' || activityKind === 'array' || Boolean(await active.scalar([...activeRoot, id])) : null;
       if (activity || changed) await warn(`${id} was active or changed during capture; this is a non-atomic snapshot.`);
       const record: SessionRecord = { id, title: String(await before.scalar([...root, 'title']) ?? id), infoPath, messagesPath, messageIndex, messageCount, active: activity, changed, log: { available: false } };
-      const parentID = await before.scalar([...root, 'parentID']); if (typeof parentID === 'string') record.parentID = parentID;
+      if (typeof parentID === 'string') record.parentID = parentID;
       await store.append('core-sessions', record);
       snapshot.sessionCount++; snapshot.messageCount += messageCount;
     }

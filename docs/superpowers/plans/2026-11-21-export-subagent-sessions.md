@@ -34,3 +34,5 @@
 - [x] Rebuild and run typecheck, unit tests, existing Chromium UI tests, and isolated native smoke tests. Review the resulting diff and commit the single cohesive change.
 
 **Validation:** The Windows host's installed Chromium passed the SDK panel tests, including emulated touch and Electron user agents. The isolated OpenCode 2.3.2 server shipped with OpenChamber passed the native transfer and projected-capture tests when run serially under Node, without starting the live host or inheriting provider credentials. The real Windows chooser and installed-panel tests remained opt-in and were not run.
+
+**Review follow-up:** A child created through the native API inherits the parent's pin metadata; Resume now distinguishes a foreign reference from a missing local pin. Native smoke verifies remapping that inherited reference and including an archived child alongside an active sibling. Synthetic coverage verifies one listing per parent and rejection of a mismatched parent before transcript capture.
