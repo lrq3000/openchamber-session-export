@@ -1,12 +1,12 @@
 {
   "name": "openchamber-session-export",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "private": true,
   "type": "module",
   "metadata": {
-    "version": "0.5.0",
+    "version": "0.5.1",
     "creation": "2026-11-07",
-    "last_updated": "2026-11-21"
+    "last_updated": "2026-11-23"
   },
   "repository": {
     "type": "git",
