@@ -24,7 +24,9 @@ $PSModuleAutoLoadingPreference = 'None'
 $sidType = [Security.Principal.SecurityIdentifier]
 $sections = [Security.AccessControl.AccessControlSections]::Owner -bor [Security.AccessControl.AccessControlSections]::Access
 $acl = [IO.Directory]::GetAccessControl($env:SESSION_EXPORT_PRIVATE_DIR, $sections)
-[Console]::WriteLine([Security.Principal.WindowsIdentity]::GetCurrent().User.Value)
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+[Console]::WriteLine($identity.User.Value)
+[Console]::WriteLine($identity.Owner.Value)
 [Console]::WriteLine($acl.GetOwner($sidType).Value)
 [Console]::WriteLine($acl.AreAccessRulesProtected)
 foreach ($rule in $acl.GetAccessRules($true, $true, $sidType)) {
@@ -36,9 +38,10 @@ foreach ($rule in $acl.GetAccessRules($true, $true, $sidType)) {
   const result = await exec(executable, ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
     windowsHide: true, timeout: 10000, env: { SystemRoot: systemRoot, SESSION_EXPORT_PRIVATE_DIR: directory },
   });
-  const [current, owner, protectedDacl, ...rules] = result.stdout.trim().split(/\r?\n/);
+  const [current, defaultOwner, owner, protectedDacl, ...rules] = result.stdout.trim().split(/\r?\n/);
   assert.match(current, /^S-\d+(?:-\d+)+$/);
-  assert.equal(owner, current);
+  // A newly created child inherits the parent's DACL, not its owner. Windows uses the token's default owner, which may be Administrators on a CI runner; hardening explicitly sets ownership to the current user.
+  assert.equal(owner, inherited ? defaultOwner : current);
   assert.equal(protectedDacl, inherited ? 'False' : 'True');
   assert.deepEqual(rules, [`${current}|2032127|Allow|3|0|${inherited ? 'True' : 'False'}`]);
 }
