@@ -1,0 +1,10 @@
+# Windows CI ACL Repair Plan
+
+**Goal:** Keep Windows CI and production import/upload independent of PowerShell module discovery while preserving owner-only private directories.
+
+**Evidence:** [Windows job 137795580848](https://github.com/lrq3000/openchamber-session-export/actions/runs/45204259205/job/137795580848) and [Windows job 136845335060](https://github.com/lrq3000/openchamber-session-export/actions/runs/44903908626/job/136845335060) each lost nine tests after the ACL subprocess hit its 10-second limit. The exact hosted-runner delay has not been reproduced locally. The old script fails with module autoloading disabled; the equivalent .NET-only script succeeds. The [runner image configures a module-analysis cache](https://github.com/actions/runner-images/pull/8495), but the old helper does not inherit that environment variable.
+
+- [x] Add a Windows regression that creates a private directory with an empty PATH and verifies its real ACL. Confirm the old implementation fails to locate Windows PowerShell.
+- [x] Use the fixed Windows PowerShell executable and direct .NET calls with module autoloading disabled. Keep the private environment, existing timeout, canonical path checks, current-user owner, protected DACL, and inheritable owner-only grant. Remove module discovery from the ACL assertion too. Reject malformed system roots and verify that no upload state is written on this failure path.
+- [x] Run the focused Windows regressions, typecheck, reproducible build, and CI-mode unit tests. Review the diff and commit locally. The final Windows unit run passed 86/86; the official isolated import contract also passed when run separately.
+- [ ] Confirm the published candidate on hosted Windows and repeat native round-trip validation with OpenCode 2.3.0. The Windows host had OpenCode 2.2.7; that engine reported no configured plugin in the isolated restore and Resume cases, and the unchanged baseline failed with the same missing bridge in the restore smoke. The full smoke run timed out, so native round trips are not verified by this change.

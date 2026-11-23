@@ -27,9 +27,23 @@ export async function privateDirectory(directory: string): Promise<void> {
   } else {
     // mode:0700 does not set Windows DACLs. Replace inheritance with a grant to the current SID; the path is passed as data, never interpolated into code.
     // Persist only the modified Owner/Access sections: PowerShell 5.1's Set-Acl provider can request Audit privileges again once a directory's DACL is protected.
-    const script = "$ErrorActionPreference='Stop';$p=$env:SESSION_EXPORT_PRIVATE_DIR;$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=New-Object Security.AccessControl.DirectorySecurity;$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);$r=New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow');$a.AddAccessRule($r);[System.IO.Directory]::SetAccessControl($p,$a)";
-    await exec('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
-      windowsHide: true, timeout: 10000, env: { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, SESSION_EXPORT_PRIVATE_DIR: directory },
+    // Direct .NET calls avoid cmdlet discovery and its cold module-cache cost on Windows runners.
+    const script = `
+$ErrorActionPreference = 'Stop'
+$PSModuleAutoLoadingPreference = 'None'
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+$acl = [Security.AccessControl.DirectorySecurity]::new()
+$acl.SetOwner($sid)
+$acl.SetAccessRuleProtection($true, $false)
+$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+[IO.Directory]::SetAccessControl($env:SESSION_EXPORT_PRIVATE_DIR, $acl)
+`;
+    const systemRoot = process.env.SystemRoot ?? 'C:\\Windows';
+    // A malformed drive-relative or network root must not turn this into a PATH or workspace lookup.
+    if (!/^[a-z]:[\\/]/i.test(systemRoot)) throw new Error('Windows ACL hardening requires an absolute local SystemRoot.');
+    const executable = join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+    await exec(executable, ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
+      windowsHide: true, timeout: 10000, env: { SystemRoot: systemRoot, SESSION_EXPORT_PRIVATE_DIR: directory },
     });
   }
 }

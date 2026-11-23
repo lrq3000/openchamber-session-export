@@ -32,11 +32,23 @@ async function privateDirectory(directory) {
   if (process.platform !== "win32") {
     if (metadata.uid !== process.getuid?.() || (metadata.mode & 63) !== 0) throw new Error("The private transfer directory must belong to this user and have mode 0700.");
   } else {
-    const script = "$ErrorActionPreference='Stop';$p=$env:SESSION_EXPORT_PRIVATE_DIR;$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User;$a=New-Object Security.AccessControl.DirectorySecurity;$a.SetOwner($sid);$a.SetAccessRuleProtection($true,$false);$r=New-Object Security.AccessControl.FileSystemAccessRule($sid,'FullControl','ContainerInherit,ObjectInherit','None','Allow');$a.AddAccessRule($r);[System.IO.Directory]::SetAccessControl($p,$a)";
-    await exec("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], {
+    const script = `
+$ErrorActionPreference = 'Stop'
+$PSModuleAutoLoadingPreference = 'None'
+$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
+$acl = [Security.AccessControl.DirectorySecurity]::new()
+$acl.SetOwner($sid)
+$acl.SetAccessRuleProtection($true, $false)
+$acl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+[IO.Directory]::SetAccessControl($env:SESSION_EXPORT_PRIVATE_DIR, $acl)
+`;
+    const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+    if (!/^[a-z]:[\\/]/i.test(systemRoot)) throw new Error("Windows ACL hardening requires an absolute local SystemRoot.");
+    const executable = join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+    await exec(executable, ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], {
       windowsHide: true,
       timeout: 1e4,
-      env: { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, SESSION_EXPORT_PRIVATE_DIR: directory }
+      env: { SystemRoot: systemRoot, SESSION_EXPORT_PRIVATE_DIR: directory }
     });
   }
 }
