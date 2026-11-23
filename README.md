@@ -1,6 +1,13 @@
 # OpenChamber Session Export
 
-Export a complete conversation or a lightweight **Resume snapshot** to ZIP, move it between OpenChamber instances, and import it as new sessions. The extension never generates a summary, sends a prompt, resumes a process or executes a conversation tool.
+Export an OpenChamber conversation to a ZIP and import it as a new session. Keep a backup to restore later, or start a conversation locally and pick it up on a remote or cloud OpenChamber instance. You can move a session in the other direction, too.
+
+- **Complete** exports the whole recorded thread and its available logs. Choose it when you want a full backup or need the earlier history.
+- **Resume snapshot** is the quick option when you just want to pick up where you left off. It keeps OpenCode’s latest reusable compaction, the recent conversation OpenCode carried forward, and relevant messages since then, without taking the entire history along. On very long threads that have been compacted repeatedly, this can make the ZIP much smaller.
+
+In either mode, you can opt in to include subagent sessions and select referenced files to take with you. The extension never generates a new summary, sends a prompt, resumes a process or executes a conversation tool.
+
+For now, [export and move the ZIP](#export-and-move-a-zip), then [import it on the destination instance](#import-on-the-destination-instance). One-click transfer between instances is planned and depends on OpenChamber [exposing bidirectional binary transfers to extensions](https://github.com/openchamber/openchamber/issues/7334).
 
 The canonical source is [lrq3000/openchamber-session-export](https://github.com/lrq3000/openchamber-session-export). See [HISTORY.md](HISTORY.md) for extraction provenance and historical paths. Current source version `0.5.0` makes subagent inclusion independent of the export mode. Changing the source version does not publish or deploy a release. The development package remains private to npm.
 
