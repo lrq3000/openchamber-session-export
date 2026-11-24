@@ -50,7 +50,7 @@ On affected Windows versions of OpenChamber, **Update** can fail because OpenCod
 - **Keep your extension data and approvals:** Wait for active sessions and transfers to finish. In **Settings → Extensions**, choose **Disable** for **Session Export**, fully quit and reopen OpenChamber Desktop, then choose **Update** with the extension still disabled. Choose **Enable** after updating.
 - **Reinstall without restarting OpenCode:** In **Settings → Extensions**, choose **Remove**, then **Add** from [the GitHub repository](https://github.com/lrq3000/openchamber-session-export) and approve the extension again. This can work while an OpenCode session is running. Removal clears extension settings and service data, including staged transfers and saved import-job lookups. Finish any Session Export operations and save what you need before removing it.
 
-The [Windows update reproduction](docs/2026-11-24-windows-native-extension-update.md) covers this failure and recovery with the packaged Windows updater and bundled engine in an isolated profile.
+Track the fix in [OpenChamber issue #7493](https://github.com/openchamber/openchamber/issues/7493). The [Windows update reproduction](docs/2026-11-24-windows-native-extension-update.md) covers the failure and recovery in an isolated Windows profile.
 
 ### Optional command-line installation
 
