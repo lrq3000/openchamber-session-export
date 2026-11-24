@@ -43,6 +43,18 @@ The installed-interface smoke case is opt-in: set `SESSION_EXPORT_NATIVE_URL` on
 
 For folder installation, copy the complete `openchamber/` directory to a stable location before registering it. A folder install references its source; never select a disposable worktree that will later be removed. Approve the declared capabilities only after reviewing the package.
 
+### If a Git update fails on Windows Desktop
+
+OpenChamber 2.8.0 with bundled OpenCode 2.3.2 can detect a new release but cannot replace the installed Git checkout while OpenCode holds a file watcher inside the plugin folder. Pausing the extension alone unloads the plugin but does not close all of its watchers. This is an updater/runtime issue, not a missing release. If the installed version is already current, no action is needed.
+
+1. Wait for active OpenCode turns and transfers to finish. In **Settings → Extensions**, choose **Disable** for **Session Export**. Do not remove it.
+2. Fully quit and reopen OpenChamber Desktop so its bundled OpenCode process restarts with Session Export still paused. Closing a window or refreshing the page is not enough if the app stays running.
+3. In **Settings → Extensions**, check for updates, choose **Update** for **Session Export**, then choose **Enable**. This keeps the existing Git installation, approvals and extension data. If the update still fails, keep the existing installation and record the exact error instead of uninstalling it.
+
+The [Windows update reproduction](docs/2026-11-24-windows-native-extension-update.md) covers this failure and recovery with the packaged Windows updater and bundled engine in an isolated profile.
+
+### Optional command-line installation
+
 For an explicitly authorized new local installation with UI authentication disabled, `scripts/install.mjs` copies six managed files, backs up the registry, registers the folder through native APIs and grants exactly the four capabilities above. **`--approve-bundled-plugin` is mandatory for a fresh CLI install**. It refuses an existing destination or extension ID, never sets `replace`, and does not replay or roll back uncertain mutations. The connection probe checks injected configuration, not full import readiness. Use native Settings when UI authentication is enabled.
 
 ```sh
