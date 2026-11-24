@@ -1,7 +1,7 @@
 {
   "name": "openchamber-session-export",
-  "version": "0.5.3",
-  "metadata": { "version": "0.5.3", "creation": "2026-11-07", "last_updated": "2026-11-23" },
+  "version": "0.5.4",
+  "metadata": { "version": "0.5.4", "creation": "2026-11-07", "last_updated": "2026-11-24" },
   "openchamber": {
     "apiVersion": 1,
     "engines": { "openchamber": ">=2.7.1" },
