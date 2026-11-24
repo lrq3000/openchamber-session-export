@@ -9,7 +9,9 @@ In either mode, you can opt in to include subagent sessions and select reference
 
 For now, [export and move the ZIP](#export-and-move-a-zip), then [import it on the destination instance](#import-on-the-destination-instance). One-click transfer between instances is planned and depends on OpenChamber [exposing bidirectional binary transfers to extensions](https://github.com/openchamber/openchamber/issues/7334).
 
-The canonical source is [lrq3000/openchamber-session-export](https://github.com/lrq3000/openchamber-session-export). See [HISTORY.md](HISTORY.md) for extraction provenance and historical paths. Version `0.5.4` documents the Windows Git update recovery options. The OpenChamber updater fix is tracked separately. The development package remains private to npm.
+The canonical source is [lrq3000/openchamber-session-export](https://github.com/lrq3000/openchamber-session-export).
+
+See [CHANGELOG.md](CHANGELOG.md) for release records and [HISTORY.md](HISTORY.md) for source extraction and provenance.
 
 ## Compatibility and installation units
 
@@ -144,12 +146,12 @@ The SDK service bearer stays backend-only. The fallback native host connection a
 
 The extension's session-menu action does not request `payload: ["messages"]`: that SDK payload is text-only, bounded and unsuitable for this archive. The panel communicates with its approved local service over the SDK text bridge. Durable-log access uses the experimental `follow=false` API and does not create a permanent recorder.
 
-## Release records
-
-Release `0.2.0` added disk-backed export and Windows Save As; `0.2.1` recorded source extraction; `0.3.0` added mobile opt-in and the native host read connection. Source version `0.4.0` adds Complete/Resume profiles, size preview, a bundled plugin, new-session ZIP import, upload and optional companion download. Patch version `0.4.1` synchronizes the selected export mode, makes Windows private-directory ACL hardening repeatable without audit privileges, and corrects the synthetic touch fixture's viewport sizing. Version `0.5.0` adds an opt-in subagent scope to both export modes and applies effective-context selection separately to every included session. Source version `0.5.1` clarifies the backup, transfer and Resume workflows without changing how they work. Patch version `0.5.2` keeps Windows private-directory permissions owner-only without depending on PowerShell module discovery. Patch version `0.5.3` corrects the test to account for the Windows runner's default directory owner before hardening. Patch version `0.5.4` documents recovery from Windows Git update failures. Creation `2026-11-07` is preserved; last updated `2026-11-24`. Package manifests, lockfile and runtime labels share the version.
-
-Copyright 2026 Stephen Karl Larroque <LRQ3000@gmail.com>. See [AUTHOR.txt](AUTHOR.txt) and the [Apache-2.0 license](LICENSE.txt); dependencies retain their own licenses.
+## Technical references
 
 Current contracts: published `@openchamber/sdk` 2.7.1 parser, [OpenChamber OpenCode service access](https://github.com/openchamber/openchamber/blob/main/packages/sdk/GUEST_SERVICES.md#opencode-access), and [mobile SDK API](https://github.com/openchamber/openchamber/blob/main/packages/sdk/API.md). The documents dated 2026-11-07 under `docs/superpowers/specs/` retain historical Windows-proxy validation, not evidence of native 0.3.0 host testing.
 
 The [approved consolidated plan](docs/superpowers/plans/2026-11-14-session-transfer-consolidated-plan.md) and [current validation record](docs/2026-11-14-session-transfer-validation.md) describe this implementation. Earlier design/follow-up documents retain historical limitations and are not authorization to change or deploy OpenChamber.
+
+## Authors and contributors
+
+Created in 2026 by Stephen Karl Larroque <LRQ3000@gmail.com>. See [AUTHOR.txt](AUTHOR.txt) and the [Apache-2.0 license](LICENSE.txt) ; dependencies retain their own licenses.
